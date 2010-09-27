@@ -1,5 +1,9 @@
-sys = require 'sys'
-alert = sys.puts
+
+if !alert?
+    if window?
+        alert = window.alert
+    else
+        alert = require('sys').puts
 class Parser
     constructor : (@buffer, @pos) ->
         this.length = @buffer.length
@@ -7,6 +11,9 @@ class Parser
     _identifier: /\w[\w\d]*/
     _text : /[^<]*/
     _interpolation: /\$\{(\w[\w\d]*)\}/g
+    _tags : []
+
+    partials : {}
 
     atEnd :->
         @pos == this.length-1
@@ -18,7 +25,7 @@ class Parser
 
     expect : (expected, extra) ->
         s = this.tail()
-        cmp = s.substr(0, expected.length);
+        cmp = s.substr(0, expected.length)
         throw "Expected #expected but got #cmp" if (cmp != expected)
         @pos+=expected.length
         this
@@ -26,18 +33,18 @@ class Parser
     tail : ->
         @buffer.substr(@pos, @buffer.length - @pos)
 
-    read : (r)-> 
+    read : (r)->
         s = this.tail()
         pos = s.search(r)
         matches = s.match(r)
-        sys.puts "failed to read #r from #s" if match==null
+        alert "failed to read #r from #s" if match==null
         match = matches[0]
         length = match.length
         @pos += pos + length
         match
 
     readIdentifier : ()->
-        this.read(this._identifier);
+        this.read(this._identifier)
 
     peekNonWs : ()->
         s = this.tail()
@@ -56,59 +63,69 @@ class Parser
 
 
     readAttribute : ()->
-        this.skipWs()
-        name = this.readIdentifier()
-        this.expect('=')
-        this.expect('"')
-        value = this.readUntil(/"/)
-        this.expect('"')
+        @skipWs()
+        name = @readIdentifier()
+        @expect('=')
+        @expect('"')
+        value = @readUntil(/"/)
+        @expect('"')
         {name, value}
 
     readText : ->
-        text = this.read(this._text)
-        if (references = text.match(this._interpolation))?
+        text = @read(this._text)
+        if (references = text.match(@_interpolation))?
             type = "interpolation"
-            references = text.match(this._interpolation)
+            references = text.match(@_interpolation)
+            @_tags[0].refs.push(ref) for ref in references
             return {type, text, references}
         {type:"text", text}
 
     readCodeBlock : ->
-        this.expect('${')
-        ref = this.readIdentifier()
-        this.expect('}')
+        @expect('${')
+        ref = @readIdentifier()
+        @expect('}')
         {'type':'ref', ref}
 
     readTag : ()->
-        this.expect('<')
-        name = this.readIdentifier()
-        this.skipWs()
-        attribs = {}
-        (attribs[attr.name] = attr.value) for attr in (this.readAttribute() while this.peekNonWs().match(/\w/)) 
-         
-        #alert(JSON.stringify(attribs))
-        this.skipWs()
-        #alert this.tail() if debug?
-        this.expect('>')
-        children=
-        while((next = this.peek(2)) && next &&  '</' != next)
-          if(next.charAt(0)=='<')
-            this.readTag()
-          else
-            this.readText()
+        @expect('<')
+        name = @readIdentifier()
+        @skipWs()
 
-        this.expect('</')
-        this.expect(name, 'End of tag')
-        this.expect('>')
-        {type:'tag', name , attribs, children}
-    
+        attribs = {}
+        tag = {name:name, attribs:attribs, type:'tag', refs:[]}
+        @_tags.unshift(tag)
+
+        (attribs[attr.name] = attr.value) for attr in (@readAttribute() while @peekNonWs().match(/\w/))
+
+        partial = attribs[partial]
+        @partials[partial] = tag if partial
+
+        @skipWs()
+        alert @tail() if debug?
+        @expect('>')
+        children=
+        while((next = @peek(2)) && next &&  '</' != next)
+          if(next.charAt(0)=='<')
+            @readTag()
+          else
+            @readText()
+
+        @_tags.shift()
+
+        @expect('</')
+        @expect(name, 'End of tag')
+        @expect('>')
+        #{type:'tag', name , attribs, children}
+        tag.children = children
+        tag
+
     readWhitespace: ()->
         text = @read(/\s*/)
         {type:"whitespace", text: text}
-        
-    
+
     readTemplate : () ->
-        this.skipWs()
-        while(next = this.peek())
+        @skipWs()
+        dom = while(next = this.peek())
           if(next=='<')
             @readTag()
           else if next.match(/^\s$/)
@@ -116,26 +133,29 @@ class Parser
           else
             @readText()
 
+        partials = @partials
+        {dom, partials}
+
 class Compiler
     constructor: (@dom) ->
         this.buffer=''
         this.length = @dom.length
-        this.pos = 0;
-    
+        this.pos = 0
+
     @eat: ->
         @dom[@pos++]
 
     evalCondition: (cond, model) ->
         evil =  "(function(){ "
-        evil += "var " + key + " = " + sys.inspect(value) + "\n" for all key, value of model
+        evil += "var " + key + " = " + JSON.stringify(value) + "\n" for all key, value of model
         evil += "return " + cond + "})()"
         eval evil
-    
+
     createObject: (prop, val) ->
         obj ={}
         obj[prop] = val
         obj
-    
+
     renderTag: (elem, model, inEachLoop) ->
         b=""
         #handle conditional inclusion of tags with if-attribute
@@ -150,11 +170,15 @@ class Compiler
             inPos = each.search(/[ ]in /)
             varname = each.substr(0, inPos)
             collection = each.substr(inPos + 4, each.length - inPos - 4)
-            (b+= @renderElement( elem, @createObject(varname, item), true)) for item in model[collection]
-            return b        
-        
+            (b+= @renderElement( elem, @createObject(varname, item), true, i)) for item, i in @getPropVal(model,collection)
+            return b
+
         #begin tag
         b+="<#{elem.name}"
+
+        elem.attribs["data-refs"] = elem.refs
+        if(each)
+            elem.attribs["data-enumeration"] = each
 
         #render attributes
         attrs=''
@@ -167,14 +191,20 @@ class Compiler
         b+="</#{elem.name}>"
         b
 
+    getPropVal: (model, propname) ->
+        val = prop = model[propname]
+        val = prop.call(model) if typeof prop=="function"
+        val
+
     interpolate: (elem, model) ->
         text = elem.text
-        (text = text.replace new RegExp("\\" + ref), model[ref.match(/\${([^}]*)}/)[1]])  for ref in elem.references
+        for ref in elem.references
+            prop = ref.match(/\${([^}]*)}/)[1]
+            (text = text.replace new RegExp("\\" + ref), (@getPropVal model, prop) )
         text
-        
+
 
     renderElement: (elem, model, inEachLoop) ->
-        b=''
         switch elem.type
           when "tag" then @renderTag elem, model, inEachLoop
           when "text" then elem.text
@@ -187,21 +217,37 @@ class Compiler
         b+=@renderElement( element, model) for element in @dom
         b
 
-  
+###
+class Compiler
+    constructor: (@dom) -> 
+        this.pos = 0
+
+        
+    compile:() ->
+        b=""
+        b+=@renderElement( element, model) for element in @dom
+        b
+###
+
 longtemplate = '
 <h1>${header}</h1>
-<div test="value" src="/somepath">\nDet var en gång för länge sedan\n<p if="variable!=2">en konstigt ${header} placerad paragraf ${variable}</p><span each="product in products">${product}</span></div> asdf'
+<div partial="hellopartial" test="value" src="/somepath">\nDet var en gång för länge sedan\n<p if="variable!=2">en konstigt ${header} placerad paragraf ${variable}</p><span each="product in products">${product}</span></div> asdf'
 
+if window?
+    window.Parser = Parser
+    window.Compiler = Compiler
 
-shorttemplate = '<span each="product in products">${product}</span>'
-
-p = new Parser shorttemplate, 0  
+#shorttemplate = '<span each="product in products">${product}</span>'
+templ = "<div>${smth}</div>"
+p = new Parser longtemplate, 0
 ###
 alert JSON.stringify(p.expect('<').readIdentifier())
 ###
 
 
-dom = p.readTemplate()
-sys.puts JSON.stringify(dom)
-alert new Compiler(dom).renderTemplate({'variable' : 'testar', header:"rubrik", products:["spis", "afa"]})
+t = p.readTemplate()
+
+#sys.puts JSON.stringify(dom)
+#alert new Compiler(dom).renderTemplate({'smth': -> return "test"})
+alert new Compiler(t.dom).renderTemplate({'variable' : 'testar', header:"rubrik", products:["spis", "afa"]})
 
