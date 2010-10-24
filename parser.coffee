@@ -39,21 +39,23 @@ class Compiler
     constructor: (@dom)->
         @indentation=''
         @partials = {}
+        @eachSeqNo=0
 
     funcStart: 'var model = arguments[0], models=[], output=\'\';\n'
     funcEnd: 'return output;\n'
 
     renderers: {
         tag: (element) ->
-            @indentation += '  '
+            #@indentation += '  '
             buffer=""
             if element.each?
+                @eachSeqNo++
                 parts = element.each.split(' ')
                 varname = parts[0]
                 collection= parts[2]
-                buffer+="models.unshift(model);\neachmodel=model['#{collection}'];\n"
-                buffer+="for(#{varname} in eachmodel){\n"
-                buffer+="model = {'#{varname}':eachmodel[#{varname}]}\n"
+                buffer+="models.unshift(model);\neachmodel#{@eachSeqNo}=model.#{collection};\n"
+                buffer+="for(#{varname} in eachmodel#{@eachSeqNo}){\n"
+                buffer+="model = {'#{varname}':eachmodel#{@eachSeqNo}[#{varname}]}\n"
 
             buffer += "output+='#{@indentation}<#{element.value}"
             if element.attributes?
@@ -67,7 +69,7 @@ class Compiler
                 buffer+="}\n"
                 buffer+="model=models.shift()\n"
 
-            @indentation = @indentation.substr(0, @indentation.length-2)
+            #@indentation = @indentation.substr(0, @indentation.length-2)
             if element.partial?
                 console.log '\n' + buffer + '\n'
                 @partials[element.partial] = @funcStart+buffer+@funcEnd
@@ -78,7 +80,7 @@ class Compiler
             "output+='#{@indentation}  #{element.value}'\n"
 
         ref: (element) ->
-            "output+='#{@indentation}' + model['#{element.value}']\n"
+            "output+='#{@indentation}' + model.#{element.value}\n"
     }
 
     compile: ->
@@ -92,7 +94,7 @@ class Compiler
     createRenderer: (element) ->
         @renderers[element.type].call(this, element)
 
-l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product}</div></div>')
+l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>')
 p = new Parser(l)
 dom = p.parse()
 
@@ -103,4 +105,7 @@ console.log JSON.stringify(dom)
 model = {
     title: "test title"
 }
-console.log template.render({products:["the first product", "bicycle", "princess"], title:"some title"})
+#console.log template.render
+console.log template.render({products:[{name:"the first product", tags:['good', 'cheap']}, {name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
+
+console.log template.render.toString()
