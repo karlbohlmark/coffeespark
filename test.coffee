@@ -140,6 +140,9 @@ class Compiler
     constructor: (@dom) ->
         this.buffer=''
         this.length = @dom.length
+        this.partials = @dom.filter (e)->
+            e.attribs && e.attribs.partial
+
         this.pos = 0
 
     @eat: ->
@@ -174,7 +177,7 @@ class Compiler
             return b
 
         #begin tag
-        b+="<#{elem.name}"
+        b+="b+=\"<#{elem.name}\"\n"
 
         elem.attribs["data-refs"] = elem.refs
         if(each)
@@ -183,39 +186,44 @@ class Compiler
         #render attributes
         attrs=''
         attrs+=' ' + key + '="' + value + '"' for all key, value of elem.attribs when key!='each' && key!='if'
-        b+= attrs if attrs.length>0
+        b+="b+=\"" + attrs + "\"\n" if attrs.length>0
 
-        b+='>'
+        b+='b+=">"'
 
         b+=@renderElement(element, model) for element in elem.children
-        b+="</#{elem.name}>"
+        b+="b+=\"</#{elem.name}>\"\n"
         b
 
     getPropVal: (model, propname) ->
         val = prop = model[propname]
         val = prop.call(model) if typeof prop=="function"
-        val
+        #val
+        return "model[" + propname + "]"
 
     interpolate: (elem, model) ->
         text = elem.text
         for ref in elem.references
             prop = ref.match(/\${([^}]*)}/)[1]
-            (text = text.replace new RegExp("\\" + ref), (@getPropVal model, prop) )
-        text
+            (text = text.replace new RegExp("\\" + ref), "\"+" + (@getPropVal model, prop) +"+\"" )
+        "b+=\"" + text + "\"\n"
 
+    compilePartial: (element)->
+        
 
     renderElement: (elem, model, inEachLoop) ->
         switch elem.type
           when "tag" then @renderTag elem, model, inEachLoop
-          when "text" then elem.text
+          when "text" then "b+=\"" + elem.text + "\""
           when "interpolation" then @interpolate(elem, model)
-          when "whitespace" then elem.text
+          when "whitespace" then "b+=\"" + elem.text + "\""
           else "unknown: " + elem.text
 
     renderTemplate: (model) ->
-        b=""
-        b+=@renderElement( element, model) for element in @dom
-        b
+        b="{\n"
+        b+=@compilePartial(element) for element in @partials
+        elements = ""
+        elements += @renderElement( element, model)  for element in @dom
+        b + ", render : function(model) { \n" + elements + "\n}\n"
 
 ###
 class Compiler
@@ -238,8 +246,8 @@ if window?
     window.Compiler = Compiler
 
 #shorttemplate = '<span each="product in products">${product}</span>'
-templ = "<div>${smth}</div>"
-p = new Parser longtemplate, 0
+templ = "<div>${smth}<ul partial=\"mypartial\"><li>t</li></ul></div>"
+p = new Parser templ, 0
 ###
 alert JSON.stringify(p.expect('<').readIdentifier())
 ###
