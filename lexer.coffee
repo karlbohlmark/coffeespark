@@ -70,6 +70,11 @@ class Lexer
                 @insideTag = false
                 @pos++
                 return true
+            if @template[@pos]=='/' && @template[@pos+1]=='>'
+                @insideTag  = false
+                @pos+=2
+                lastOpened = @tags.shift()
+                return @emit {type: 'tagend', value: lastOpened}
 
             while(@template[@pos]==' ' || !@isAlpha(@template[@pos]) && @pos<@length)
                 @pos++
