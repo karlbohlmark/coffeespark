@@ -1,4 +1,4 @@
-Lexer = require('./lexer').Lexer
+Lexer = require('./lexer') && require('./lexer').Lexer || window.Lexer
 
 class Parser
     constructor: (@lexer)->
@@ -62,7 +62,7 @@ class Compiler
                 collection= parts[2]
                 buffer+="models.unshift(model);\neachmodel#{@eachSeqNo}=model.#{collection};\n"
                 buffer+="for(#{varname} in eachmodel#{@eachSeqNo}){\n"
-                buffer+="model = {'#{varname}':eachmodel#{@eachSeqNo}[#{varname}]}\n"
+                buffer+="model = {'#{varname}':eachmodel#{@eachSeqNo}[#{varname}]};\n"
 
             buffer += "output+='#{@indentation}<#{element.value}"
             if element.attributes?
@@ -70,17 +70,17 @@ class Compiler
                 #buffer += ' ' + attr.name + '=\\"' + @attrValue(attr.value)  + '\\"' for attr in element.attributes
 
             selfClose or (buffer += '>')
-            buffer += '\'\n'
+            buffer += '\';\n'
             children = @createRenderer el for el in element.children
             buffer += child for child in children
             if selfClose
-                buffer += "output+='#{@indentation}/>'\n"
+                buffer += "output+='#{@indentation}/>';\n"
             else
-                buffer += "output+='#{@indentation}</#{element.value}>'\n"
+                buffer += "output+='#{@indentation}</#{element.value}>';\n"
 
             if element.each?
                 buffer+="}\n"
-                buffer+="model=models.shift()\n"
+                buffer+="model=models.shift();\n"
 
             #@indentation = @indentation.substr(0, @indentation.length-2)
             if element.partial?
@@ -100,10 +100,10 @@ class Compiler
 
         content: (element) ->
             return '' if element.value==''
-            "output+='#{@indentation}  #{element.value}'\n"
+            "output+='#{@indentation}  #{element.value.replace('\n', '\\n')}';\n"
 
         ref: (element) ->
-            "output+='#{@indentation}' + model.#{element.value}\n"
+            "output+='#{@indentation}' + model.#{element.value};\n"
     }
 
     compile: ->
@@ -123,8 +123,8 @@ class Compiler
         item.type == "content" ? item.value 
 
 
-#l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>')
-l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>')
+l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>')
+#l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>')
 p = new Parser(l)
 dom = p.parse()
 
@@ -138,4 +138,6 @@ model = {
 #console.log template.render
 console.log template.render({products:[{name:"the first product", tags:['good', 'cheap']}, {name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
 
-console.log template.render.toString()
+#console.log template.render.toString()
+
+(typeof window != "undefined") && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler)

@@ -3,7 +3,7 @@
   var __bind = function(func, context) {
     return function(){ return func.apply(context, arguments); };
   };
-  Lexer = require('./lexer').Lexer;
+  Lexer = require('./lexer') && require('./lexer').Lexer || window.Lexer;
   Parser = function(_arg) {
     this.lexer = _arg;
     this.dom = {
@@ -84,7 +84,7 @@
         collection = parts[2];
         buffer += ("models.unshift(model);\neachmodel" + (this.eachSeqNo) + "=model." + (collection) + ";\n");
         buffer += ("for(" + (varname) + " in eachmodel" + (this.eachSeqNo) + "){\n");
-        buffer += ("model = {'" + (varname) + "':eachmodel" + (this.eachSeqNo) + "[" + (varname) + "]}\n");
+        buffer += ("model = {'" + (varname) + "':eachmodel" + (this.eachSeqNo) + "[" + (varname) + "]};\n");
       }
       buffer += ("output+='" + (this.indentation) + "<" + (element.value));
       if (typeof (_ref = element.attributes) !== "undefined" && _ref !== null) {
@@ -95,7 +95,7 @@
         }
       }
       selfClose || (buffer += '>');
-      buffer += '\'\n';
+      buffer += '\';\n';
       children = (function() {
         _result = []; _ref = element.children;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -110,13 +110,13 @@
         buffer += child;
       }
       if (selfClose) {
-        buffer += ("output+='" + (this.indentation) + "/>'\n");
+        buffer += ("output+='" + (this.indentation) + "/>';\n");
       } else {
-        buffer += ("output+='" + (this.indentation) + "</" + (element.value) + ">'\n");
+        buffer += ("output+='" + (this.indentation) + "</" + (element.value) + ">';\n");
       }
       if (typeof (_ref = element.each) !== "undefined" && _ref !== null) {
         buffer += "}\n";
-        buffer += "model=models.shift()\n";
+        buffer += "model=models.shift();\n";
       }
       if (typeof (_ref = element.partial) !== "undefined" && _ref !== null) {
         console.log('\n' + buffer + '\n');
@@ -144,10 +144,10 @@
       if (element.value === '') {
         return '';
       }
-      return "output+='" + (this.indentation) + "  " + (element.value) + "'\n";
+      return "output+='" + (this.indentation) + "  " + (element.value.replace('\n', '\\n')) + "';\n";
     },
     ref: function(element) {
-      return "output+='" + (this.indentation) + "' + model." + (element.value) + "\n";
+      return "output+='" + (this.indentation) + "' + model." + (element.value) + ";\n";
     }
   };
   Compiler.prototype.compile = function() {
@@ -181,7 +181,7 @@
     }
     return item.type === (typeof "content" !== "undefined" && "content" !== null) ? "content" : item.value;
   };
-  l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>');
+  l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>');
   p = new Parser(l);
   dom = p.parse();
   c = new Compiler(dom);
@@ -202,5 +202,5 @@
     ],
     title: "some title"
   }));
-  console.log(template.render.toString());
+  window && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler);
 }).call(this);

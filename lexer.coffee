@@ -118,4 +118,5 @@ class Lexer
         return @emit {type: 'content', value: @template.substr(start, @pos-start)}
 
 exports.Lexer = Lexer
-
+if typeof(window) != "undefined"
+    window.Lexer = Lexer

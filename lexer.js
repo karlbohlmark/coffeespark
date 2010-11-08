@@ -170,4 +170,7 @@
     });
   };
   exports.Lexer = Lexer;
+  if (typeof (window) !== "undefined") {
+    window.Lexer = Lexer;
+  }
 }).call(this);
