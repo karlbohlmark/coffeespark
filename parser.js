@@ -17,6 +17,7 @@
     this.parent = this.dom;
     this.currentNode = this.dom.template;
     this.lexer.on('token', __bind(function(token) {
+      console.log(token);
       return this.receive(token);
     }, this));
     return this;
@@ -30,7 +31,7 @@
       this.currentNode.children = [];
     }
     if (token.type === 'attribute') {
-      if (!(typeof (_ref = this.currentNode.attribute) !== "undefined" && _ref !== null)) {
+      if (!(typeof (_ref = this.currentNode.attributes) !== "undefined" && _ref !== null)) {
         this.currentNode.attributes = [];
       }
       switch (token.name) {
@@ -52,7 +53,6 @@
     }
   };
   Parser.prototype.parse = function() {
-    console.log(this.lexer.pos);
     while (this.lexer.pos < this.lexer.length) {
       this.lexer.next();
     }
@@ -65,12 +65,18 @@
     this.eachSeqNo = 0;
     return this;
   };
+  Compiler.prototype.selfClosing = {
+    'input': true,
+    'link': true,
+    'img': true
+  };
   Compiler.prototype.funcStart = 'var model = arguments[0], models=[], output=\'\';\n';
   Compiler.prototype.funcEnd = 'return output;\n';
   Compiler.prototype.renderers = {
     tag: function(element) {
-      var _i, _len, _ref, _result, attr, buffer, child, children, collection, el, parts, varname;
+      var _i, _len, _ref, _result, attr, buffer, child, children, collection, el, parts, selfClose, varname;
       buffer = "";
+      selfClose = this.selfClosing[element.value];
       if (typeof (_ref = element.each) !== "undefined" && _ref !== null) {
         this.eachSeqNo++;
         parts = element.each.split(' ');
@@ -85,10 +91,11 @@
         _ref = element.attributes;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           attr = _ref[_i];
-          buffer += ' ' + attr.name + '=\\"' + attr.value + '\\"';
+          buffer += this.renderers.attribute.call(this, attr);
         }
       }
-      buffer += '>\'\n';
+      selfClose || (buffer += '>');
+      buffer += '\'\n';
       children = (function() {
         _result = []; _ref = element.children;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -102,7 +109,11 @@
         child = _ref[_i];
         buffer += child;
       }
-      buffer += ("output+='" + (this.indentation) + "</" + (element.value) + ">'\n");
+      if (selfClose) {
+        buffer += ("output+='" + (this.indentation) + "/>'\n");
+      } else {
+        buffer += ("output+='" + (this.indentation) + "</" + (element.value) + ">'\n");
+      }
       if (typeof (_ref = element.each) !== "undefined" && _ref !== null) {
         buffer += "}\n";
         buffer += "model=models.shift()\n";
@@ -110,6 +121,22 @@
       if (typeof (_ref = element.partial) !== "undefined" && _ref !== null) {
         console.log('\n' + buffer + '\n');
         this.partials[element.partial] = this.funcStart + buffer + this.funcEnd;
+      }
+      return buffer;
+    },
+    attribute: function(element) {
+      var _i, _len, _ref, buffer, item;
+      buffer = (" " + (element.name) + "=");
+      if (typeof element.value === "string") {
+        buffer += "\"" + element.value + "\"";
+      } else {
+        buffer += "'";
+        _ref = element.value;
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          item = _ref[_i];
+          buffer += " + " + ((item.type === "content") ? "'" + item.value + "'" : ("model." + (item.value)));
+        }
+        buffer += " + '";
       }
       return buffer;
     },
@@ -148,7 +175,13 @@
   Compiler.prototype.createRenderer = function(element) {
     return this.renderers[element.type].call(this, element);
   };
-  l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>');
+  Compiler.prototype.stringOrRef = function(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    return item.type === (typeof "content" !== "undefined" && "content" !== null) ? "content" : item.value;
+  };
+  l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>');
   p = new Parser(l);
   dom = p.parse();
   c = new Compiler(dom);

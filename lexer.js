@@ -37,7 +37,7 @@
     return (64 < code) && (code < 91) || (96 < code) && (code < 122);
   };
   Lexer.prototype.next = function() {
-    var attrName, attrValue, contentToken, current, lastOpened, next, quot, start, token, type, value;
+    var attrName, attrValue, contentToken, current, lastOpened, next, parts, quot, ref, refs, start, token, type, value;
     if (this.deferred) {
       (token = this.deferred) && (this.deferred = null);
       return this.emit(token);
@@ -112,6 +112,29 @@
         this.pos++;
       }
       attrValue = this.template.substr(start, this.pos++ - start);
+      refs = attrValue.match(/\$\{[a-zA-Z_\-0-9]+\}/g);
+      if (refs && refs.length > 0) {
+        ref = refs[0];
+        ref = ref.substr(2, ref.length - 3);
+        parts = attrValue.split(refs[0]);
+        attrValue = [];
+        if (parts[0] !== "") {
+          attrValue.push({
+            type: "content",
+            value: parts[0]
+          });
+        }
+        attrValue.push({
+          type: "ref",
+          value: ref
+        });
+        if (parts[1] !== "") {
+          attrValue.push({
+            type: "content",
+            value: parts[1]
+          });
+        }
+      }
       return this.emit({
         type: 'attribute',
         name: attrName,

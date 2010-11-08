@@ -87,6 +87,18 @@ class Lexer
             while @template[@pos]!=quot
                 @pos++
             attrValue = @template.substr start, @pos++-start
+
+            #This section to support references in attribute values is rather hacky/incomplete. todo:rewrite
+            refs = attrValue.match /\$\{[a-zA-Z_\-0-9]+\}/g
+            if refs && refs.length>0
+                ref = refs[0]
+                ref = ref.substr(2, ref.length-3)
+                parts = attrValue.split refs[0]
+                attrValue = []
+                attrValue.push({type:"content", value:parts[0]}) if parts[0]!=""
+                attrValue.push({type:"ref", value:ref})
+                attrValue.push({type:"content", value:parts[1]}) if parts[1]!=""
+
             return @emit {type: 'attribute', name: attrName, value: attrValue}
 
         start = @pos
@@ -94,7 +106,7 @@ class Lexer
             @pos++
 
         if @template[@pos]=='$' && @template[@pos+1]=='{'
-            contentToken = {type:'content', value: @template.substr(start, @pos-start)}
+            contentToken = {type:'content', value: @template.substr(start, @pos-start)} #todo:do not emit empty content tokens 
             @pos+=2
             start = @pos
             @pos++ while @template[@pos]!='}' && @pos<@length

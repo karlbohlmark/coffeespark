@@ -17,7 +17,7 @@ class Parser
 
         @currentNode.children = [] if !@currentNode.children?
         if token.type=='attribute'
-            @currentNode.attributes = [] if !@currentNode.attribute?
+            @currentNode.attributes = [] if !@currentNode.attributes?
             switch token.name
                 when 'partial' then @currentNode.partial = token.value
                 when 'each'    then @currentNode.each = token.value
@@ -66,7 +66,8 @@ class Compiler
 
             buffer += "output+='#{@indentation}<#{element.value}"
             if element.attributes?
-                buffer += ' ' + attr.name + '=\\"' + attr.value  + '\\"' for attr in element.attributes
+                buffer += @renderers.attribute.call(this, attr) for attr in element.attributes
+                #buffer += ' ' + attr.name + '=\\"' + @attrValue(attr.value)  + '\\"' for attr in element.attributes
 
             selfClose or (buffer += '>')
             buffer += '\'\n'
@@ -85,6 +86,16 @@ class Compiler
             if element.partial?
                 console.log '\n' + buffer + '\n'
                 @partials[element.partial] = @funcStart+buffer+@funcEnd
+            buffer
+
+        attribute: (element) ->
+            buffer= " #{element.name}="
+            if typeof element.value=="string"
+                buffer += "\"" + element.value + "\""
+            else
+                buffer += "'"
+                buffer +=" + " + (if(item.type == "content") then "'" + item.value + "'" else "model.#{item.value}") for item in element.value
+                buffer +=" + '"
             buffer
 
         content: (element) ->
@@ -106,8 +117,14 @@ class Compiler
     createRenderer: (element) ->
         @renderers[element.type].call(this, element)
 
+    stringOrRef: (value)->
+        return value if typeof value=="string"
+
+        item.type == "content" ? item.value 
+
+
 #l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>')
-l = new Lexer('<div class="test" id="myid"><input type="text"/></div>')
+l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>')
 p = new Parser(l)
 dom = p.parse()
 
