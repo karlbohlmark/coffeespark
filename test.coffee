@@ -150,7 +150,7 @@ class Compiler
 
     evalCondition: (cond, model) ->
         evil =  "(function(){ "
-        evil += "var " + key + " = " + JSON.stringify(value) + "\n" for all key, value of model
+        #evil += "var " + key + " = " + JSON.stringify(value) + "\n" for all key, value of model
         evil += "return " + cond + "})()"
         eval evil
 
@@ -185,7 +185,7 @@ class Compiler
 
         #render attributes
         attrs=''
-        attrs+=' ' + key + '="' + value + '"' for all key, value of elem.attribs when key!='each' && key!='if'
+        attrs+=' ' + key + '="' + value + '"' for  key, value of elem.attribs when key!='each' && key!='if'
         b+="b+=\"" + attrs + "\"\n" if attrs.length>0
 
         b+='b+=">"'
