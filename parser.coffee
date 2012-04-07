@@ -52,7 +52,8 @@ class Compiler
 
     renderers: {
         tag: (element) ->
-            #@indentation += '  '
+            console.log JSON.stringify(element)
+            @indentation += '  '
             buffer=""
             selfClose = @selfClosing[element.value]
             if element.each?
@@ -60,29 +61,47 @@ class Compiler
                 parts = element.each.split(' ')
                 varname = parts[0]
                 collection= parts[2]
-                buffer+="models.unshift(model);\neachmodel#{@eachSeqNo}=model.#{collection};\n"
-                buffer+="for(#{varname} in eachmodel#{@eachSeqNo}){\n"
-                buffer+="model = {'#{varname}':eachmodel#{@eachSeqNo}[#{varname}]};\n"
+                collName = collection.split('.').pop()
+                buffer+="""
+models.unshift(model);\n
+var render_#{varname} = function(#{varname}){
 
-            buffer += "output+='#{@indentation}<#{element.value}"
+}
+var render_#{collName} = function(#{collName}#{@eachSeqNo}){
+    var buffer = ''
+    #{collName}#{@eachSeqNo}.forEach( function(#{varname}){
+        buffer += render_#{varname}(#{varname})
+    })
+    return buffer;
+}
+var #{collName}#{@eachSeqNo}=model.#{collection};\n"""
+                
+                buffer+="for(var #{varname} in #{collName}#{@eachSeqNo}){\n"
+                buffer+="  model = {'#{varname}':#{collName}#{@eachSeqNo}[#{varname}]};\n"
+
+            buffer += "  output+='\\n#{@indentation}<#{element.value}"
             if element.attributes?
                 buffer += @renderers.attribute.call(this, attr) for attr in element.attributes
                 #buffer += ' ' + attr.name + '=\\"' + @attrValue(attr.value)  + '\\"' for attr in element.attributes
 
-            selfClose or (buffer += '>')
+            selfClose or (buffer += '>\\n')
             buffer += '\';\n'
-            children = @createRenderer el for el in element.children
+            
+            children = (@createRenderer el for el in (element.children || []))
             buffer += child for child in children
+
+            indent = if element.each then '  ' else ''
+
             if selfClose
-                buffer += "output+='#{@indentation}/>';\n"
+                buffer += "#{indent}output+='#{@indentation}/>';\n"
             else
-                buffer += "output+='#{@indentation}</#{element.value}>';\n"
+                buffer += "#{indent}output+='\\n#{@indentation}</#{element.value}>';\n"
 
             if element.each?
                 buffer+="}\n"
                 buffer+="model=models.shift();\n"
 
-            #@indentation = @indentation.substr(0, @indentation.length-2)
+            @indentation = @indentation.substr(0, @indentation.length-2)
             if element.partial?
                 console.log '\n' + buffer + '\n'
                 @partials[element.partial] = @funcStart+buffer+@funcEnd
@@ -103,7 +122,7 @@ class Compiler
             "output+='#{@indentation}  #{element.value.replace('\n', '\\n')}';\n"
 
         ref: (element) ->
-            "output+='#{@indentation}' + model.#{element.value};\n"
+            "output+='#{@indentation}  ' + model.#{element.value};\n"
     }
 
     compile: ->
@@ -123,15 +142,26 @@ class Compiler
         item.type == "content" ? item.value 
 
 
-l = new Lexer('<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>')
+exports.Parser = Parser
+###
+exports.Compiler = Compiler
+
+exports.Parser = Parser
+exports.Compiler = Compiler
+###
+
+tmpl = '<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+l = new Lexer(tmpl)
 #l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>')
 p = new Parser(l)
 dom = p.parse()
 
+#console.dir(dom)
+
 c = new Compiler(dom)
 template = c.compile()
 
-console.log JSON.stringify(dom)
+#console.log JSON.stringify(dom)
 model = {
     title: "test title"
 }
@@ -139,5 +169,6 @@ model = {
 console.log template.render({products:[{name:"the first product", tags:['good', 'cheap']}, {name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
 
 #console.log template.render.toString()
-
+###
 (typeof window != "undefined") && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler)
+###
