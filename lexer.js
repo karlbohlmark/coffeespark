@@ -42,6 +42,16 @@
       return (64 < code && code < 91) || (96 < code && code < 122);
     };
 
+    Lexer.prototype.isNumeric = function(chr) {
+      var code;
+      code = chr.charCodeAt(0);
+      return (48 <= code && code <= 57);
+    };
+
+    Lexer.prototype.isAlphaNumeric = function(chr) {
+      return this.isAlpha(chr) || this.isNumeric(chr);
+    };
+
     Lexer.prototype.next = function() {
       var attrName, attrValue, contentToken, current, lastOpened, next, parts, quot, ref, refs, start, token, type, value;
       if (this.deferred) {
@@ -54,7 +64,7 @@
       if (current === '<' && next !== '/') {
         this.pos++;
         start = this.pos;
-        while (this.isAlpha(this.template[this.pos]) && this.pos < this.length) {
+        while (this.isAlphaNumeric(this.template[this.pos]) && this.pos < this.length) {
           this.pos++;
         }
         if (this.template[this.pos] !== '>') this.insideTag = true;
@@ -68,7 +78,7 @@
       if (current === '<' && next === '/') {
         this.pos += 2;
         start = this.pos;
-        while (this.isAlpha(this.template[this.pos]) && this.pos < this.length) {
+        while (this.isAlphaNumeric(this.template[this.pos]) && this.pos < this.length) {
           this.pos++;
         }
         value = this.template.substr(start, this.pos - start);

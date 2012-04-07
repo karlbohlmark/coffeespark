@@ -26,6 +26,12 @@ class Lexer
         code = chr.charCodeAt(0)
         return 64 < code < 91 || 96 < code < 122
 
+    isNumeric: (chr)->
+        code = chr.charCodeAt(0)
+        48 <= code <= 57
+
+    isAlphaNumeric: (chr)-> @isAlpha(chr) || @isNumeric(chr)
+
     next: ->
         if @deferred
             (token = @deferred) && @deferred=null
@@ -36,7 +42,7 @@ class Lexer
         if current== '<' && next != '/'
             @pos++
             start = @pos
-            while @isAlpha(@template[@pos]) && @pos<@length
+            while @isAlphaNumeric(@template[@pos]) && @pos<@length
                 @pos++
 
             if @template[@pos]!='>'
@@ -51,7 +57,7 @@ class Lexer
         if current == '<' && next == '/'
             @pos+=2
             start = @pos
-            while @isAlpha(@template[@pos]) && @pos<@length
+            while @isAlphaNumeric(@template[@pos]) && @pos<@length
                 @pos++
 
             value = @template.substr(start, @pos-start)

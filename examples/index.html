@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+        window.onload = function() {
+            var products = []
+            for(var i =0;i<7;i++){
+                products.push('product ' + i)
+            }
+            var model = {
+                products: products,
+                complexProducts: products.map(function(p){ return {name: p, tags: ['hot', 'expensive'] }})
+            }
+
+            function renderExample(id){
+                var template = document.getElementById(id).innerHTML;
+
+                var parser = new Spark.Parser(new Lexer(template))
+                var dom = parser.parse();
+                var compiler = new Spark.Compiler(dom)
+                var renderer = compiler.compile(dom)
+                var res = renderer.render(model)
+                return res;
+            }
+
+            var templates = [].slice.call( document.querySelectorAll('script[type="text/spark"]') )
+            var examples = templates.map(function(t){
+                return {name: t.id.replace(/_/g, ' '), results: renderExample(t.id)};
+            });
+
+            var tmpl = new Spark.Compiler(new Spark.Parser(new Spark.Lexer( document.querySelector('.example-template').outerHTML )).parse()).compile();
+
+            document.getElementsByTagName('body')[0].innerHTML = tmpl.render({examples: examples});
+        }
+    </script>
+    <script src="../spark.js"></script>
+    
+    
+    <script id="Simple_iteration" type="text/spark">
+        <ul>
+            <li each="product in products">${product}</li>
+        </ul>
+    </script>
+
+    <script id="Complex_type_iteration" type="text/spark">
+        <ul>
+            <li each="product in complexProducts">
+                <span>${product.name}</span>
+                <ul>
+                    <li each="tag in product.tags">${tag}</li>
+                </ul>
+            </li>
+        </ul>
+    </script>
+</head>
+<body>
+    <div class="example-template">
+        <div each="example in examples">
+            <h2> ${example.name} </h2>
+            <div>${example.results}</div>
+        </div>
+    </div>
+</body>
+</html>
