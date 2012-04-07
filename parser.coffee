@@ -1,4 +1,4 @@
-Lexer = require('./lexer') && require('./lexer').Lexer || window.Lexer
+Lexer = if typeof require=='function' then require('./lexer').Lexer else window.Lexer
 
 class Parser
     constructor: (@lexer)->
@@ -128,7 +128,11 @@ class Compiler
     compile: ->
         buffer = ''# @funcStart
         renderers = (@createRenderer element for element in @dom.template.children)
-        entry = renderers[0]
+        
+        i=0
+        i++ while typeof renderers[i] == 'string'
+        entry = renderers[i]
+
 
         templ = """template = {
             render: function(model){#{entry.body}}
@@ -162,15 +166,15 @@ class Compiler
 
         item.type == "content" ? item.value 
 
-
-exports.Parser = Parser
+if typeof exports!='undefined'
+    exports.Parser = Parser
 ###
 exports.Compiler = Compiler
 
 exports.Parser = Parser
 exports.Compiler = Compiler
 ###
-
+###
 tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
 p = new Parser(l)
@@ -186,7 +190,9 @@ model = {
 }
 
 console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
-
+###
+if typeof window isnt 'undefined'
+    window.Spark = { Compiler, Parser, Lexer }
 
 ###
 (typeof window != "undefined") && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler)

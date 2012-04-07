@@ -173,8 +173,10 @@
 
   })();
 
-  exports.Lexer = Lexer;
-
-  if (typeof window !== "undefined") window.Lexer = Lexer;
+  if (typeof window !== "undefined") {
+    window.Lexer = Lexer;
+  } else {
+    exports.Lexer = Lexer;
+  }
 
 }).call(this);

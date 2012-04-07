@@ -1,0 +1,2 @@
+#!/bin/sh
+coffee -c parser.coffee lexer.coffee && rm -f spark.js && touch spark.js && cat lexer.js >> spark.js && cat parser.js >> spark.js

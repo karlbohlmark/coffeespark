@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-   <script>exports ={}; require = function(){} </script> 
     <script>
                 
         Object.keys = Object.keys || function(obj){
@@ -13,8 +12,6 @@
             }
             return arr;
         }
- 
- 
  
         window.onload = function() {
             var template = document.getElementById('template').innerHTML;
@@ -34,8 +31,8 @@
             document.getElementsByTagName('body')[0].innerHTML = res
         }
     </script>
-    <script src="lexer.js"></script>
-    <script src="parser.js"></script>
+    <script src="spark.js"></script>
+    
     
     <script id="template" type="text/spark">
         <ul>

@@ -120,6 +120,8 @@ class Lexer
             console.log 'theend'
         return @emit {type: 'content', value: @template.substr(start, @pos-start)}
 
-exports.Lexer = Lexer
+
 if typeof(window) != "undefined"
     window.Lexer = Lexer
+else
+    exports.Lexer = Lexer

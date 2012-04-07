@@ -1,7 +1,7 @@
 (function() {
-  var Compiler, Lexer, Parser;
+  var Compiler, Lexer, Parser, c, dom, l, model, p, template, tmpl;
 
-  Lexer = typeof require === 'function' ? require('./lexer').Lexer : window.Lexer;
+  Lexer = require('./lexer') && require('./lexer').Lexer || window.Lexer;
 
   Parser = (function() {
 
@@ -187,7 +187,7 @@
     };
 
     Compiler.prototype.compile = function() {
-      var buffer, element, entry, entryFn, i, parts, renderers, templ;
+      var buffer, element, entry, entryFn, parts, renderers, templ;
       buffer = '';
       renderers = (function() {
         var _i, _len, _ref, _results;
@@ -199,11 +199,7 @@
         }
         return _results;
       }).call(this);
-      i = 0;
-      while (typeof renderers[i] === 'string') {
-        i++;
-      }
-      entry = renderers[i];
+      entry = renderers[0];
       templ = "template = {\nrender: function(model){" + entry.body + "}";
       this.functions.forEach(function(r) {
         return templ += ", " + r.name + ": function(model){" + r.body + "}";
@@ -237,7 +233,7 @@
 
   })();
 
-  if (typeof exports !== 'undefined') exports.Parser = Parser;
+  exports.Parser = Parser;
 
   /*
   exports.Compiler = Compiler
@@ -246,25 +242,40 @@
   exports.Compiler = Compiler
   */
 
-  /*
-  tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
-  l = new Lexer(tmpl)
-  p = new Parser(l)
-  dom = p.parse()
-  
-  console.log("----" + JSON.stringify(dom) + "----")
-  
-  c = new Compiler(dom)
-  template = c.compile()
-  
-  model = {
-      title: "test title"
-  }
-  
-  console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
-  */
+  tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>';
 
-  if (typeof window !== 'undefined') {
+  l = new Lexer(tmpl);
+
+  p = new Parser(l);
+
+  dom = p.parse();
+
+  console.log("----" + JSON.stringify(dom) + "----");
+
+  c = new Compiler(dom);
+
+  template = c.compile();
+
+  model = {
+    title: "test title"
+  };
+
+  console.log(template.render({
+    products: [
+      {
+        id: 1,
+        name: "the first product",
+        tags: ['good', 'cheap']
+      }, {
+        id: 2,
+        name: "bicycle",
+        tags: ['expensive', 'red']
+      }
+    ],
+    title: "some title"
+  }));
+
+  if (typeof window !== void 0) {
     window.Spark = {
       Compiler: Compiler,
       Parser: Parser,
