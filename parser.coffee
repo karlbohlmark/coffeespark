@@ -41,6 +41,7 @@ class Compiler
         @partials = {}
         @eachSeqNo=0
         @renderFnCounter= 0
+        @renderFnNames={}
         @functions= []
 
 
@@ -59,10 +60,26 @@ class Compiler
         buf += if @selfClosing[tagname] then "#{bufferName}+='/>';" else "#{bufferName}+='>';"
         buf
 
+    parseEachAttr:(each)->
+        parts = each.split(' ')
+        varname = parts[0]
+        collection= parts[2]
+        collectionName = collection.split('.').pop()
+        {varname, collectionName}
+
+    getRenderFnName: (element)->
+        if element.each
+            name = @parseEachAttr(element.each).collectionName
+            name += @renderFnCounter++ if @renderFnNames.hasOwnProperty(name)
+        else
+            name = "#{element.value}#{@renderFnCounter++}"
+        @renderFnNames[name]=1
+        name
+
     renderers: {
         tag: (element) ->
             selfClose = @selfClosing[element.value]
-            fnName = element.partial || "#{element.value}#{@renderFnCounter++}";
+            fnName = element.partial || @getRenderFnName(element);
             buffer = ''
             buffer +="var output='';\n"
 
@@ -167,7 +184,7 @@ exports.Parser = Parser
 exports.Compiler = Compiler
 ###
 
-tmpl = '<div class="test"><span partial="title">${title}</span><div partial="product" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
 p = new Parser(l)
 dom = p.parse()
