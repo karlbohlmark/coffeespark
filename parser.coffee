@@ -62,7 +62,7 @@ class Compiler
     renderers: {
         tag: (element) ->
             selfClose = @selfClosing[element.value]
-            fnName = "#{element.value}#{@renderFnCounter++}";
+            fnName = element.partial || "#{element.value}#{@renderFnCounter++}";
             buffer = ''
             buffer +="var output='';\n"
 
@@ -72,14 +72,14 @@ class Compiler
                 collection= parts[2]
                 collName = collection.split('.').pop()
                 loopCollection = "#{collName}#{@eachSeqNo}"
-                buffer+= "model.#{collection}.forEach(function(#{varname}){"
+                buffer+= "model.#{collection}.forEach(function(#{varname}){ var model= {#{varname}:#{varname}};\n"
 
                 
 
             buffer += @startTagRenderer('output', element.value, element.attributes)
 
             children = (@createRenderer el for el in (element.children || []))
-            buffer += (if child.name then "output+=part.#{child.name}(model, part);" else child) for child in children
+            buffer += (if child.name then "output+=this.#{child.name}.call(this, model);" else child) for child in children
 
             @functions.push(child) for child in children when child.name?
             if not selfClose
@@ -87,7 +87,9 @@ class Compiler
 
 
             if element.each?
-                buffer+='})'
+                buffer+='}.bind(this))'
+
+            buffer+=';return output;'
             ###
             if element.each?
                 buffer+="}\n"
@@ -122,22 +124,31 @@ class Compiler
     compile: ->
         buffer = ''# @funcStart
         renderers = (@createRenderer element for element in @dom.template.children)
+        entry = renderers[0]
+
+        templ = """template = {
+            render: function(model){#{entry.body}}
+        """
+
+        @functions.forEach (r)->
+            #console.log(JSON.stringify(model));
+            templ+=", #{r.name}: function(model){#{r.body}}"
         
+        templ+="};/*end template*/"
+
         parts = {}
         @functions.forEach (r)->
             parts[r.name] = new Function('model', 'console.log(JSON.stringify(model));' + r.body)
-            console.log "#{r.name}: #{r.body}\n"
 
-        entry = renderers[0]
-        console.log "#{entry.name}:#{entry.body}"
+        
+        console.log templ
 
-        entryFn = new Function('model', 'part', entry.body)
+        entryFn = new Function('model', entry.body)
 
         #(buffer+= renderer) for renderer in renderers
         buffer += '' #@funcEnd
 
-        console.log entryFn.toString()
-        { render: (model)->  entryFn(model, parts) } # {render:new Function(buffer), partials: @partials}
+        { render: (model)->  entryFn.call(parts, model) } # {render:new Function(buffer), partials: @partials}
 
     createRenderer: (element) ->
         @renderers[element.type].call(this, element)
@@ -156,9 +167,8 @@ exports.Parser = Parser
 exports.Compiler = Compiler
 ###
 
-tmpl = '<div class="test"><span>${title}</span><div partial="magicpartial" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+tmpl = '<div class="test"><span partial="title">${title}</span><div partial="product" each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
-#l = new Lexer('<div class="tes${testar}" id="myid"><input type="text"/></div>')
 p = new Parser(l)
 dom = p.parse()
 
@@ -167,14 +177,13 @@ console.log("----" + JSON.stringify(dom) + "----")
 c = new Compiler(dom)
 template = c.compile()
 
-#console.log JSON.stringify(dom)
 model = {
     title: "test title"
 }
-#console.log template.render
+
 console.log template.render({products:[{name:"the first product", tags:['good', 'cheap']}, {name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
 
-#console.log template.render.toString()
+
 ###
 (typeof window != "undefined") && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler)
 ###
