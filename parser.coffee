@@ -104,9 +104,9 @@ class Compiler
 
 
             if element.each?
-                buffer+='}.bind(this))'
+                buffer+='}.bind(this));'
 
-            buffer+=';return output;'
+            buffer+='return output;'
             ###
             if element.each?
                 buffer+="}\n"
@@ -135,7 +135,7 @@ class Compiler
             "output+='#{@indentation}  #{element.value.replace('\n', '\\n')}';\n"
 
         ref: (element) ->
-            "output+='#{@indentation}  ' + model.#{element.value}/*ref*/;\n"
+            "output+='#{@indentation}  ' + model.#{element.value};\n"
     }
 
     compile: ->
@@ -184,7 +184,7 @@ exports.Parser = Parser
 exports.Compiler = Compiler
 ###
 
-tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
 p = new Parser(l)
 dom = p.parse()
@@ -198,7 +198,7 @@ model = {
     title: "test title"
 }
 
-console.log template.render({products:[{name:"the first product", tags:['good', 'cheap']}, {name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
+console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
 
 
 ###

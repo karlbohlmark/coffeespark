@@ -1,6 +1,8 @@
 (function() {
   var Lexer;
+
   Lexer = (function() {
+
     function Lexer(template) {
       this.template = template;
       this.tokens = [];
@@ -14,13 +16,14 @@
       this.tags = [];
       this.insideTag = false;
     }
+
     Lexer.prototype.currentToken = [];
+
     Lexer.prototype.on = function(ev, listener) {
-      if (ev !== 'error' && ev !== 'token') {
-        throw "Unsupported event:" + event;
-      }
+      if (ev !== 'error' && ev !== 'token') throw "Unsupported event:" + event;
       return this.listeners[ev].push(listener);
     };
+
     Lexer.prototype.emit = function(token) {
       var listener, _i, _len, _ref, _results;
       this.last = token;
@@ -32,11 +35,13 @@
       }
       return _results;
     };
+
     Lexer.prototype.isAlpha = function(chr) {
       var code;
       code = chr.charCodeAt(0);
       return (64 < code && code < 91) || (96 < code && code < 122);
     };
+
     Lexer.prototype.next = function() {
       var attrName, attrValue, contentToken, current, lastOpened, next, parts, quot, ref, refs, start, token, type, value;
       if (this.deferred) {
@@ -52,9 +57,7 @@
         while (this.isAlpha(this.template[this.pos]) && this.pos < this.length) {
           this.pos++;
         }
-        if (this.template[this.pos] !== '>') {
-          this.insideTag = true;
-        }
+        if (this.template[this.pos] !== '>') this.insideTag = true;
         value = this.template.substr(start, this.pos++ - start);
         this.tags.unshift(value);
         return this.emit({
@@ -70,9 +73,7 @@
         }
         value = this.template.substr(start, this.pos - start);
         lastOpened = this.tags.shift();
-        if (value !== lastOpened) {
-          throw "expected " + lastOpened + " got " + value;
-        }
+        if (value !== lastOpened) throw "expected " + lastOpened + " got " + value;
         this.pos++;
         this.insideTag = false;
         return this.emit({
@@ -80,9 +81,7 @@
           value: value
         });
       }
-      if (this.pos >= this.length) {
-        return;
-      }
+      if (this.pos >= this.length) return;
       if (this.insideTag) {
         if (this.template[this.pos] === '>') {
           this.insideTag = false;
@@ -113,7 +112,8 @@
           this.pos++;
         }
         attrValue = this.template.substr(start, this.pos++ - start);
-        refs = attrValue.match(/\$\{[a-zA-Z_\-0-9]+\}/g);
+        refs = attrValue.match(/\$\{[a-zA-Z_\-0-9\.]+\}/g);
+        console.log(attrValue + refs);
         if (refs && refs.length > 0) {
           ref = refs[0];
           ref = ref.substr(2, ref.length - 3);
@@ -162,18 +162,19 @@
         };
         return this.emit(contentToken);
       }
-      if ((this.pos - start) === 0) {
-        console.log('theend');
-      }
+      if ((this.pos - start) === 0) console.log('theend');
       return this.emit({
         type: 'content',
         value: this.template.substr(start, this.pos - start)
       });
     };
+
     return Lexer;
+
   })();
+
   exports.Lexer = Lexer;
-  if (typeof window !== "undefined") {
-    window.Lexer = Lexer;
-  }
+
+  if (typeof window !== "undefined") window.Lexer = Lexer;
+
 }).call(this);

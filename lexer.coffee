@@ -89,7 +89,10 @@ class Lexer
             attrValue = @template.substr start, @pos++-start
 
             #This section to support references in attribute values is rather hacky/incomplete. todo:rewrite
-            refs = attrValue.match /\$\{[a-zA-Z_\-0-9]+\}/g
+            refs = attrValue.match /\$\{[a-zA-Z_\-0-9\.]+\}/g
+
+            console.log attrValue + refs
+
             if refs && refs.length>0
                 ref = refs[0]
                 ref = ref.substr(2, ref.length-3)
