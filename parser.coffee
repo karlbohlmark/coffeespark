@@ -65,7 +65,7 @@ class Compiler
         varname = parts[0]
         collection= parts[2]
         collectionName = collection.split('.').pop()
-        {varname, collectionName}
+        {varname, collectionName, collection}
 
     getRenderFnName: (element)->
         if element.each
@@ -84,11 +84,8 @@ class Compiler
             buffer +="var output='';\n"
 
             if element.each?
-                parts = element.each.split(' ')
-                varname = parts[0]
-                collection= parts[2]
-                collName = collection.split('.').pop()
-                loopCollection = "#{collName}#{@eachSeqNo}"
+                {varname, collectionName, collection} = @parseEachAttr element.each
+                loopCollection = "#{collectionName}#{@eachSeqNo}"
                 buffer+= "model.#{collection}.forEach(function(#{varname}){ var model= {#{varname}:#{varname}};\n"
 
                 
@@ -107,16 +104,6 @@ class Compiler
                 buffer+='}.bind(this));'
 
             buffer+='return output;'
-            ###
-            if element.each?
-                buffer+="}\n"
-                buffer+="model=models.shift();\n"
-            ###
-            ###
-            if element.partial?
-                console.log '\n' + buffer + '\n'
-                @partials[element.partial] = @funcStart+buffer+@funcEnd
-            ###
 
             { name: fnName, body: buffer }
 
