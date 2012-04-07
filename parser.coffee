@@ -40,6 +40,9 @@ class Compiler
         @indentation=''
         @partials = {}
         @eachSeqNo=0
+        @renderFnCounter= 0
+        @functions= []
+
 
     selfClosing:{
         'input':true
@@ -50,62 +53,53 @@ class Compiler
     funcStart: 'var model = arguments[0], models=[], output=\'\';\n'
     funcEnd: 'return output;\n'
 
+    startTagRenderer: (bufferName, tagname, attributes)->
+        buf = "#{bufferName}+='<#{tagname}';"
+        (buf += "#{bufferName}+='" + @renderers.attribute.call(@, attr) + "';") for attr in (attributes || [])
+        buf += if @selfClosing[tagname] then "#{bufferName}+='/>';" else "#{bufferName}+='>';"
+        buf
+
     renderers: {
         tag: (element) ->
-            console.log JSON.stringify(element)
-            @indentation += '  '
-            buffer=""
             selfClose = @selfClosing[element.value]
+            fnName = "#{element.value}#{@renderFnCounter++}";
+            buffer = ''
+            buffer +="var output='';\n"
+
             if element.each?
-                @eachSeqNo++
                 parts = element.each.split(' ')
                 varname = parts[0]
                 collection= parts[2]
                 collName = collection.split('.').pop()
-                buffer+="""
-models.unshift(model);\n
-var render_#{varname} = function(#{varname}){
+                loopCollection = "#{collName}#{@eachSeqNo}"
+                buffer+= "model.#{collection}.forEach(function(#{varname}){"
 
-}
-var render_#{collName} = function(#{collName}#{@eachSeqNo}){
-    var buffer = ''
-    #{collName}#{@eachSeqNo}.forEach( function(#{varname}){
-        buffer += render_#{varname}(#{varname})
-    })
-    return buffer;
-}
-var #{collName}#{@eachSeqNo}=model.#{collection};\n"""
                 
-                buffer+="for(var #{varname} in #{collName}#{@eachSeqNo}){\n"
-                buffer+="  model = {'#{varname}':#{collName}#{@eachSeqNo}[#{varname}]};\n"
 
-            buffer += "  output+='\\n#{@indentation}<#{element.value}"
-            if element.attributes?
-                buffer += @renderers.attribute.call(this, attr) for attr in element.attributes
-                #buffer += ' ' + attr.name + '=\\"' + @attrValue(attr.value)  + '\\"' for attr in element.attributes
+            buffer += @startTagRenderer('output', element.value, element.attributes)
 
-            selfClose or (buffer += '>\\n')
-            buffer += '\';\n'
-            
             children = (@createRenderer el for el in (element.children || []))
-            buffer += child for child in children
+            buffer += (if child.name then "output+=part.#{child.name}(model, part);" else child) for child in children
 
-            indent = if element.each then '  ' else ''
+            @functions.push(child) for child in children when child.name?
+            if not selfClose
+                buffer += "output+='</#{element.value}>';\n"
 
-            if selfClose
-                buffer += "#{indent}output+='#{@indentation}/>';\n"
-            else
-                buffer += "#{indent}output+='\\n#{@indentation}</#{element.value}>';\n"
 
+            if element.each?
+                buffer+='})'
+            ###
             if element.each?
                 buffer+="}\n"
                 buffer+="model=models.shift();\n"
-
-            @indentation = @indentation.substr(0, @indentation.length-2)
+            ###
+            ###
             if element.partial?
                 console.log '\n' + buffer + '\n'
                 @partials[element.partial] = @funcStart+buffer+@funcEnd
-            buffer
+            ###
+
+            { name: fnName, body: buffer }
 
         attribute: (element) ->
             buffer= " #{element.name}="
@@ -122,16 +116,28 @@ var #{collName}#{@eachSeqNo}=model.#{collection};\n"""
             "output+='#{@indentation}  #{element.value.replace('\n', '\\n')}';\n"
 
         ref: (element) ->
-            "output+='#{@indentation}  ' + model.#{element.value};\n"
+            "output+='#{@indentation}  ' + model.#{element.value}/*ref*/;\n"
     }
 
     compile: ->
-        buffer = @funcStart
-        renderers = @createRenderer element for element in @dom.template.children
-        (buffer+= renderer) for renderer in renderers
-        buffer += @funcEnd
+        buffer = ''# @funcStart
+        renderers = (@createRenderer element for element in @dom.template.children)
+        
+        parts = {}
+        @functions.forEach (r)->
+            parts[r.name] = new Function('model', 'console.log(JSON.stringify(model));' + r.body)
+            console.log "#{r.name}: #{r.body}\n"
 
-        return {render:new Function(buffer), partials: @partials}
+        entry = renderers[0]
+        console.log "#{entry.name}:#{entry.body}"
+
+        entryFn = new Function('model', 'part', entry.body)
+
+        #(buffer+= renderer) for renderer in renderers
+        buffer += '' #@funcEnd
+
+        console.log entryFn.toString()
+        { render: (model)->  entryFn(model, parts) } # {render:new Function(buffer), partials: @partials}
 
     createRenderer: (element) ->
         @renderers[element.type].call(this, element)
@@ -156,7 +162,7 @@ l = new Lexer(tmpl)
 p = new Parser(l)
 dom = p.parse()
 
-#console.dir(dom)
+console.log("----" + JSON.stringify(dom) + "----")
 
 c = new Compiler(dom)
 template = c.compile()
