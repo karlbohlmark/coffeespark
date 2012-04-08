@@ -3,13 +3,22 @@
 <head>
     <script>
         window.onload = function() {
+            var codeArea = document.querySelector('textarea');
+            var compiled = document.querySelector('#try div');
+            codeArea.addEventListener('keyup', function(){
+                var tmplText = codeArea.value;
+                var dom=new Spark.Parser(new Spark.Lexer( codeArea.value )).parse()
+                var compiledTemplate = new Spark.Compiler(dom).compile()
+                compiled.innerHTML = compiledTemplate.tmpl.replace(/</g, '&lt;').replace(/>/g,'&gt')
+            });
+
             var products = []
             for(var i =0;i<7;i++){
                 products.push('product ' + i)
             }
             var model = {
                 products: products,
-                complexProducts: products.map(function(p){ return {name: p, tags: ['hot', 'expensive'] }})
+                complexProducts: products.map(function(p, i){ return {id: i,name: p, tags: ['hot', 'expensive'] }})
             }
 
             function renderExample(id){
@@ -30,7 +39,7 @@
 
             var tmpl = new Spark.Compiler(new Spark.Parser(new Spark.Lexer( document.querySelector('.example-template').outerHTML )).parse()).compile();
 
-            document.getElementsByTagName('body')[0].innerHTML = tmpl.render({examples: examples});
+            document.querySelector('.example-template').innerHTML = tmpl.render({examples: examples});
         }
     </script>
     <script src="../spark.js"></script>
@@ -44,7 +53,7 @@
 
     <script id="Complex_type_iteration" type="text/spark">
         <ul>
-            <li each="product in complexProducts">
+            <li if="product.id>3" each="product in complexProducts" data-id="${product.id}">
                 <span>${product.name}</span>
                 <ul>
                     <li each="tag in product.tags">${tag}</li>
@@ -54,6 +63,27 @@
     </script>
 </head>
 <body>
+    <div id="try">
+        <style scoped>
+            #try { overflow: auto; }
+            #try > * {
+                float:left;
+            }
+            #try div{
+                margin-left: 20px;
+                width: 600px;
+            }
+            textarea{
+                width:300px;
+                height:200px;
+            }
+        </style>
+        <textarea>
+            <ul>
+                <li each="product in products">${product}</li>
+            </ul>
+        </textarea><div></div>
+    </div>
     <div class="example-template">
         <div each="example in examples">
             <h2> ${example.name} </h2>

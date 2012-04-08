@@ -21,6 +21,7 @@ class Parser
             switch token.name
                 when 'partial' then @currentNode.partial = token.value
                 when 'each'    then @currentNode.each = token.value
+                when 'if'    then @currentNode.if = token.value
                 else
                     @currentNode.attributes.push token
 
@@ -88,8 +89,8 @@ class Compiler
                 loopCollection = "#{collectionName}#{@eachSeqNo}"
                 buffer+= "model.#{collection}.forEach(function(#{varname}){ var model= {#{varname}:#{varname}};\n"
 
-                
-
+            if element.if
+                buffer+= "if(#{element.if}){\n"
             buffer += @startTagRenderer('output', element.value, element.attributes)
 
             children = (@createRenderer el for el in (element.children || []))
@@ -99,10 +100,11 @@ class Compiler
             if not selfClose
                 buffer += "output+='</#{element.value}>';\n"
 
+            buffer += '}' if element.if
 
             if element.each?
                 buffer+='}.bind(this));'
-
+            
             buffer+='return output;'
 
             { name: fnName, body: buffer }
@@ -144,19 +146,20 @@ class Compiler
         
         templ+="};/*end template*/"
 
+        console.log templ
+
         parts = {}
         @functions.forEach (r)->
-            parts[r.name] = new Function('model', 'console.log(JSON.stringify(model));' + r.body)
-
-        
-        console.log templ
+            #console.log(JSON.stringify(model));
+            parts[r.name] = new Function('model', '' + r.body)
 
         entryFn = new Function('model', entry.body)
 
         #(buffer+= renderer) for renderer in renderers
         buffer += '' #@funcEnd
 
-        { render: (model)->  entryFn.call(parts, model) } # {render:new Function(buffer), partials: @partials}
+        { render: ((model)->  entryFn.call(parts, model) )
+        , tmpl: templ } # {render:new Function(buffer), partials: @partials}
 
     createRenderer: (element) ->
         @renderers[element.type].call(this, element)
@@ -174,8 +177,8 @@ exports.Compiler = Compiler
 exports.Parser = Parser
 exports.Compiler = Compiler
 ###
-###
-tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+
+tmpl = '<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
 p = new Parser(l)
 dom = p.parse()
@@ -190,7 +193,7 @@ model = {
 }
 
 console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
-###
+
 if typeof window isnt 'undefined'
     window.Spark = { Compiler, Parser, Lexer }
 

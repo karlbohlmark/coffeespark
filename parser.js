@@ -1,5 +1,5 @@
 (function() {
-  var Compiler, Lexer, Parser;
+  var Compiler, Lexer, Parser, c, dom, l, model, p, template, tmpl;
 
   Lexer = typeof require === 'function' ? require('./lexer').Lexer : window.Lexer;
 
@@ -37,6 +37,9 @@
             break;
           case 'each':
             this.currentNode.each = token.value;
+            break;
+          case 'if':
+            this.currentNode["if"] = token.value;
             break;
           default:
             this.currentNode.attributes.push(token);
@@ -134,6 +137,7 @@
           loopCollection = "" + collectionName + this.eachSeqNo;
           buffer += "model." + collection + ".forEach(function(" + varname + "){ var model= {" + varname + ":" + varname + "};\n";
         }
+        if (element["if"]) buffer += "if(" + element["if"] + "){\n";
         buffer += this.startTagRenderer('output', element.value, element.attributes);
         children = (function() {
           var _i, _len, _ref2, _results;
@@ -154,6 +158,7 @@
           if (child.name != null) this.functions.push(child);
         }
         if (!selfClose) buffer += "output+='</" + element.value + ">';\n";
+        if (element["if"]) buffer += '}';
         if (element.each != null) buffer += '}.bind(this));';
         buffer += 'return output;';
         return {
@@ -209,17 +214,18 @@
         return templ += ", " + r.name + ": function(model){" + r.body + "}";
       });
       templ += "};/*end template*/";
+      console.log(templ);
       parts = {};
       this.functions.forEach(function(r) {
-        return parts[r.name] = new Function('model', 'console.log(JSON.stringify(model));' + r.body);
+        return parts[r.name] = new Function('model', '' + r.body);
       });
-      console.log(templ);
       entryFn = new Function('model', entry.body);
       buffer += '';
       return {
-        render: function(model) {
+        render: (function(model) {
           return entryFn.call(parts, model);
-        }
+        }),
+        tmpl: templ
       };
     };
 
@@ -246,23 +252,38 @@
   exports.Compiler = Compiler
   */
 
-  /*
-  tmpl = '<div class="test"><span partial="title">${title}</span><div each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
-  l = new Lexer(tmpl)
-  p = new Parser(l)
-  dom = p.parse()
-  
-  console.log("----" + JSON.stringify(dom) + "----")
-  
-  c = new Compiler(dom)
-  template = c.compile()
-  
+  tmpl = '<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>';
+
+  l = new Lexer(tmpl);
+
+  p = new Parser(l);
+
+  dom = p.parse();
+
+  console.log("----" + JSON.stringify(dom) + "----");
+
+  c = new Compiler(dom);
+
+  template = c.compile();
+
   model = {
-      title: "test title"
-  }
-  
-  console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
-  */
+    title: "test title"
+  };
+
+  console.log(template.render({
+    products: [
+      {
+        id: 1,
+        name: "the first product",
+        tags: ['good', 'cheap']
+      }, {
+        id: 2,
+        name: "bicycle",
+        tags: ['expensive', 'red']
+      }
+    ],
+    title: "some title"
+  }));
 
   if (typeof window !== 'undefined') {
     window.Spark = {
