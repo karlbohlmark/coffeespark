@@ -1,4 +1,4 @@
-Lexer = if typeof require=='function' then require('./lexer').Lexer else window.Lexer
+Lexer = this.Lexer || exports.Lexer || require('./lexer').Lexer
 
 class Parser
     constructor: (@lexer)->
@@ -8,7 +8,6 @@ class Parser
         @parent = @dom
         @currentNode = @dom.template
         @lexer.on 'token', (token) =>
-            console.log(token)
             @receive token
 
     receive: (token) ->
@@ -40,10 +39,11 @@ class Compiler
     constructor: (@dom)->
         @indentation=''
         @partials = {}
-        @eachSeqNo=0
-        @renderFnCounter= 0
-        @renderFnNames={}
-        @functions= []
+        @eachSeqNo = 0
+        @renderFnCounter = 0
+        @renderFnNames= {}
+        @functions = []
+        @models = []
 
 
     selfClosing:{
@@ -58,7 +58,7 @@ class Compiler
     startTagRenderer: (bufferName, tagname, attributes)->
         buf = "#{bufferName}+='<#{tagname}';"
         (buf += "#{bufferName}+='" + @renderers.attribute.call(@, attr) + "';") for attr in (attributes || [])
-        buf += if @selfClosing[tagname] then "#{bufferName}+='/>';" else "#{bufferName}+='>';"
+        buf +=  "#{bufferName}+='>';"
         buf
 
     parseEachAttr:(each)->
@@ -76,7 +76,8 @@ class Compiler
             name = "#{element.value}#{@renderFnCounter++}"
         @renderFnNames[name]=1
         name
-
+    expand: (expression)->
+        return "(function(){ try{return #{expression}} catch(ex){return model.#{expression}}}())"
     renderers: {
         tag: (element) ->
             selfClose = @selfClosing[element.value]
@@ -87,10 +88,10 @@ class Compiler
             if element.each?
                 {varname, collectionName, collection} = @parseEachAttr element.each
                 loopCollection = "#{collectionName}#{@eachSeqNo}"
-                buffer+= "model.#{collection}.forEach(function(#{varname}){ var model= {#{varname}:#{varname}};\n"
+                buffer+= "model.#{collection}.forEach(function(m, #{varname}){var model= {#{varname}:#{varname}, model:m};this.models.unshift(#{varname});\n"
 
             if element.if
-                buffer+= "if(#{element.if}){\n"
+                buffer+= "if(#{@expand(element.if)}){\n"
             buffer += @startTagRenderer('output', element.value, element.attributes)
 
             children = (@createRenderer el for el in (element.children || []))
@@ -103,7 +104,7 @@ class Compiler
             buffer += '}' if element.if
 
             if element.each?
-                buffer+='}.bind(this));'
+                buffer+='}.bind(this, model));'
             
             buffer+='return output;'
 
@@ -115,28 +116,33 @@ class Compiler
                 buffer += "\"" + element.value + "\""
             else
                 buffer += "'"
-                buffer +=" + " + (if(item.type == "content") then "'" + item.value + "'" else "model.#{item.value}") for item in element.value
+                buffer +=" + " + (if(item.type == "content") then "'" + item.value + "'" else "'\"' + model.#{item.value} + '\"'") for item in element.value
                 buffer +=" + '"
             buffer
 
         content: (element) ->
             return '' if element.value==''
-            "output+='#{@indentation}  #{element.value.replace('\n', '\\n')}';\n"
+            "output+='#{element.value.replace(/\n/g, '\\n')}';\n"
 
         ref: (element) ->
-            "output+='#{@indentation}  ' + model.#{element.value};\n"
+            "output+=model.#{element.value};\n"
     }
 
     compile: ->
+        console.log 'start compile'
         buffer = ''# @funcStart
         renderers = (@createRenderer element for element in @dom.template.children)
         
-        i=0
-        i++ while typeof renderers[i] == 'string'
-        entry = renderers[i]
+        renderers.forEach( (r, i)-> 
+            if typeof r=='string'
+                renderers[i] = name: 'entry', body: ()-> r
+        )
 
+        entry = renderers[0]
+        console.log @dom.template.children.length if not entry 
 
-        templ = """template = {
+        templ = """var template = {
+            models:[],
             render: function(model){#{entry.body}}
         """
 
@@ -144,16 +150,23 @@ class Compiler
             #console.log(JSON.stringify(model));
             templ+=", #{r.name}: function(model){#{r.body}}"
         
-        templ+="};/*end template*/"
+        templ+="};/*end template*/;"
 
-        console.log templ
-
-        parts = {}
+        templ = "define(function(){#{templ}\nreturn template; });"
+        #console.log templ
+        parts = { models:[] }
         @functions.forEach (r)->
             #console.log(JSON.stringify(model));
-            parts[r.name] = new Function('model', '' + r.body)
+            try
+                parts[r.name] = new Function('model', '' + r.body)
+            catch ex
+                console.error r.body
 
-        entryFn = new Function('model', entry.body)
+        entryFn = ->
+        try
+            entryFn = new Function('model', entry.body)
+        catch ex
+            console.error entry.body
 
         #(buffer+= renderer) for renderer in renderers
         buffer += '' #@funcEnd
@@ -171,14 +184,10 @@ class Compiler
 
 if typeof exports!='undefined'
     exports.Parser = Parser
-###
-exports.Compiler = Compiler
+    exports.Compiler = Compiler
 
-exports.Parser = Parser
-exports.Compiler = Compiler
 ###
-
-tmpl = '<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+tmpl = '<div>${title}</div>'#'<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
 l = new Lexer(tmpl)
 p = new Parser(l)
 dom = p.parse()
@@ -191,11 +200,21 @@ template = c.compile()
 model = {
     title: "test title"
 }
-
-console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
+###
+#console.log template.render({products:[{id:1, name:"the first product", tags:['good', 'cheap']}, {id:2, name:"bicycle", tags:['expensive', 'red']}], title:"some title"})
 
 if typeof window isnt 'undefined'
     window.Spark = { Compiler, Parser, Lexer }
+
+compile = (tmpl)-> new Compiler(new Parser(new Lexer(tmpl)).parse()).compile()
+
+if typeof process !='undefined' && process and not process.parent
+    console.log 'main'
+    file = process.argv[2]
+    tmplText = require('fs').readFileSync(file).toString()
+    template = compile(tmplText)
+    outfile = file.replace '.cork.html', '.cork.js'
+    require('fs').writeFileSync(outfile, js_beautify( template.tmpl ) )
 
 ###
 (typeof window != "undefined") && (window.Spark = {}) && (window.Spark.Parser = Parser) && (window.Spark.Compiler = Compiler)

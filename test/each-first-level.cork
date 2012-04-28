@@ -1,0 +1,1 @@
+<div each="item in items">${item}</div>

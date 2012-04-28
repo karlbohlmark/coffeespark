@@ -27,6 +27,7 @@
     Lexer.prototype.emit = function(token) {
       var listener, _i, _len, _ref, _results;
       this.last = token;
+      console.log(JSON.stringify(token));
       _ref = this.listeners['token'];
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -53,7 +54,7 @@
     };
 
     Lexer.prototype.next = function() {
-      var attrName, attrValue, contentToken, current, lastOpened, next, parts, quot, ref, refs, start, token, type, value;
+      var attrName, attrValue, contentToken, current, guard, lastOpened, next, parts, quot, ref, refs, start, token, type, value;
       if (this.deferred) {
         (token = this.deferred) && (this.deferred = null);
         return this.emit(token);
@@ -83,7 +84,7 @@
         }
         value = this.template.substr(start, this.pos - start);
         lastOpened = this.tags.shift();
-        if (value !== lastOpened) throw "expected " + lastOpened + " got " + value;
+        if (value !== lastOpened) {}
         this.pos++;
         this.insideTag = false;
         return this.emit({
@@ -118,12 +119,12 @@
         this.pos++;
         quot = this.template[this.pos];
         start = ++this.pos;
-        while (this.template[this.pos] !== quot) {
+        guard = 0;
+        while (this.template[this.pos] !== quot && this.pos < this.length) {
           this.pos++;
         }
         attrValue = this.template.substr(start, this.pos++ - start);
         refs = attrValue.match(/\$\{[a-zA-Z_\-0-9\.]+\}/g);
-        console.log(attrValue + refs);
         if (refs && refs.length > 0) {
           ref = refs[0];
           ref = ref.substr(2, ref.length - 3);

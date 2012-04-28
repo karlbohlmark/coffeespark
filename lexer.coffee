@@ -20,6 +20,7 @@ class Lexer
 
     emit: (token) ->
         @last = token
+        console.log JSON.stringify(token)
         listener(token) for listener in @listeners['token']
 
     isAlpha: (chr)->
@@ -32,7 +33,7 @@ class Lexer
 
     isAlphaNumeric: (chr)-> @isAlpha(chr) || @isNumeric(chr)
 
-    next: ->
+    next: ->        
         if @deferred
             (token = @deferred) && @deferred=null
             return @emit token
@@ -63,7 +64,7 @@ class Lexer
             value = @template.substr(start, @pos-start)
             lastOpened = @tags.shift()
             if value != lastOpened
-                throw "expected #{lastOpened} got #{value}"
+                ;#throw "expected #{lastOpened} got #{value}"
             @pos++
             @insideTag=false
             return @emit {type: 'tagend', value:value}
@@ -82,22 +83,23 @@ class Lexer
                 lastOpened = @tags.shift()
                 return @emit {type: 'tagend', value: lastOpened}
 
+
             while(@template[@pos]==' ' || !@isAlpha(@template[@pos]) && @pos<@length)
                 @pos++
             start = @pos
-            @pos++ while @isAlpha(@template[@pos]) || @template[@pos]=='-' #attribute
+            while @isAlpha(@template[@pos]) || @template[@pos]=='-' #attribute
+                @pos++
             attrName = @template.substr start, @pos-start
             @pos++ #skip ending quote
             quot = @template[@pos]
             start = ++@pos
-            while @template[@pos]!=quot
+            guard = 0
+            while @template[@pos]!=quot and @pos<@length
                 @pos++
             attrValue = @template.substr start, @pos++-start
 
             #This section to support references in attribute values is rather hacky/incomplete. todo:rewrite
             refs = attrValue.match /\$\{[a-zA-Z_\-0-9\.]+\}/g
-
-            console.log attrValue + refs
 
             if refs && refs.length>0
                 ref = refs[0]

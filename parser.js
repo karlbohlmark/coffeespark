@@ -1,7 +1,7 @@
 (function() {
-  var Compiler, Lexer, Parser, c, dom, l, model, p, template, tmpl;
+  var Compiler, Lexer, Parser, compile, file, outfile, template, tmplText;
 
-  Lexer = typeof require === 'function' ? require('./lexer').Lexer : window.Lexer;
+  Lexer = this.Lexer || exports.Lexer || require('./lexer').Lexer;
 
   Parser = (function() {
 
@@ -19,7 +19,6 @@
       this.parent = this.dom;
       this.currentNode = this.dom.template;
       this.lexer.on('token', function(token) {
-        console.log(token);
         return _this.receive(token);
       });
     }
@@ -74,6 +73,7 @@
       this.renderFnCounter = 0;
       this.renderFnNames = {};
       this.functions = [];
+      this.models = [];
     }
 
     Compiler.prototype.selfClosing = {
@@ -94,7 +94,7 @@
         attr = _ref[_i];
         buf += ("" + bufferName + "+='") + this.renderers.attribute.call(this, attr) + "';";
       }
-      buf += this.selfClosing[tagname] ? "" + bufferName + "+='/>';" : "" + bufferName + "+='>';";
+      buf += "" + bufferName + "+='>';";
       return buf;
     };
 
@@ -125,6 +125,10 @@
       return name;
     };
 
+    Compiler.prototype.expand = function(expression) {
+      return "(function(){ try{return " + expression + "} catch(ex){return model." + expression + "}}())";
+    };
+
     Compiler.prototype.renderers = {
       tag: function(element) {
         var buffer, child, children, collection, collectionName, el, fnName, loopCollection, selfClose, varname, _i, _j, _len, _len2, _ref;
@@ -135,9 +139,9 @@
         if (element.each != null) {
           _ref = this.parseEachAttr(element.each), varname = _ref.varname, collectionName = _ref.collectionName, collection = _ref.collection;
           loopCollection = "" + collectionName + this.eachSeqNo;
-          buffer += "model." + collection + ".forEach(function(" + varname + "){ var model= {" + varname + ":" + varname + "};\n";
+          buffer += "model." + collection + ".forEach(function(m, " + varname + "){var model= {" + varname + ":" + varname + ", model:m};this.models.unshift(" + varname + ");\n";
         }
-        if (element["if"]) buffer += "if(" + element["if"] + "){\n";
+        if (element["if"]) buffer += "if(" + (this.expand(element["if"])) + "){\n";
         buffer += this.startTagRenderer('output', element.value, element.attributes);
         children = (function() {
           var _i, _len, _ref2, _results;
@@ -159,7 +163,7 @@
         }
         if (!selfClose) buffer += "output+='</" + element.value + ">';\n";
         if (element["if"]) buffer += '}';
-        if (element.each != null) buffer += '}.bind(this));';
+        if (element.each != null) buffer += '}.bind(this, model));';
         buffer += 'return output;';
         return {
           name: fnName,
@@ -176,7 +180,7 @@
           _ref = element.value;
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             item = _ref[_i];
-            buffer += " + " + (item.type === "content" ? "'" + item.value + "'" : "model." + item.value);
+            buffer += " + " + (item.type === "content" ? "'" + item.value + "'" : "'\"' + model." + item.value + " + '\"'");
           }
           buffer += " + '";
         }
@@ -184,15 +188,16 @@
       },
       content: function(element) {
         if (element.value === '') return '';
-        return "output+='" + this.indentation + "  " + (element.value.replace('\n', '\\n')) + "';\n";
+        return "output+='" + (element.value.replace(/\n/g, '\\n')) + "';\n";
       },
       ref: function(element) {
-        return "output+='" + this.indentation + "  ' + model." + element.value + ";\n";
+        return "output+=model." + element.value + ";\n";
       }
     };
 
     Compiler.prototype.compile = function() {
-      var buffer, element, entry, entryFn, i, parts, renderers, templ;
+      var buffer, element, entry, entryFn, parts, renderers, templ;
+      console.log('start compile');
       buffer = '';
       renderers = (function() {
         var _i, _len, _ref, _results;
@@ -204,22 +209,40 @@
         }
         return _results;
       }).call(this);
-      i = 0;
-      while (typeof renderers[i] === 'string') {
-        i++;
-      }
-      entry = renderers[i];
-      templ = "template = {\nrender: function(model){" + entry.body + "}";
+      renderers.forEach(function(r, i) {
+        if (typeof r === 'string') {
+          return renderers[i] = {
+            name: 'entry',
+            body: function() {
+              return r;
+            }
+          };
+        }
+      });
+      entry = renderers[0];
+      if (!entry) console.log(this.dom.template.children.length);
+      templ = "var template = {\nmodels:[],\nrender: function(model){" + entry.body + "}";
       this.functions.forEach(function(r) {
         return templ += ", " + r.name + ": function(model){" + r.body + "}";
       });
-      templ += "};/*end template*/";
-      console.log(templ);
-      parts = {};
+      templ += "};/*end template*/;";
+      templ = "define(function(){" + templ + "\nreturn template; });";
+      parts = {
+        models: []
+      };
       this.functions.forEach(function(r) {
-        return parts[r.name] = new Function('model', '' + r.body);
+        try {
+          return parts[r.name] = new Function('model', '' + r.body);
+        } catch (ex) {
+          return console.error(r.body);
+        }
       });
-      entryFn = new Function('model', entry.body);
+      entryFn = function() {};
+      try {
+        entryFn = new Function('model', entry.body);
+      } catch (ex) {
+        console.error(entry.body);
+      }
       buffer += '';
       return {
         render: (function(model) {
@@ -243,47 +266,26 @@
 
   })();
 
-  if (typeof exports !== 'undefined') exports.Parser = Parser;
+  if (typeof exports !== 'undefined') {
+    exports.Parser = Parser;
+    exports.Compiler = Compiler;
+  }
 
   /*
-  exports.Compiler = Compiler
+  tmpl = '<div>${title}</div>'#'<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>'
+  l = new Lexer(tmpl)
+  p = new Parser(l)
+  dom = p.parse()
   
-  exports.Parser = Parser
-  exports.Compiler = Compiler
-  */
-
-  tmpl = '<div class="test"><span partial="title">${title}</span><div if="product.id!=1" each="product in products" data-id="${product.id}">${product.name}<span each="tag in product.tags">${tag}</span></div></div>';
-
-  l = new Lexer(tmpl);
-
-  p = new Parser(l);
-
-  dom = p.parse();
-
-  console.log("----" + JSON.stringify(dom) + "----");
-
-  c = new Compiler(dom);
-
-  template = c.compile();
-
+  console.log("----" + JSON.stringify(dom) + "----")
+  
+  c = new Compiler(dom)
+  template = c.compile()
+  
   model = {
-    title: "test title"
-  };
-
-  console.log(template.render({
-    products: [
-      {
-        id: 1,
-        name: "the first product",
-        tags: ['good', 'cheap']
-      }, {
-        id: 2,
-        name: "bicycle",
-        tags: ['expensive', 'red']
-      }
-    ],
-    title: "some title"
-  }));
+      title: "test title"
+  }
+  */
 
   if (typeof window !== 'undefined') {
     window.Spark = {
@@ -291,6 +293,19 @@
       Parser: Parser,
       Lexer: Lexer
     };
+  }
+
+  compile = function(tmpl) {
+    return new Compiler(new Parser(new Lexer(tmpl)).parse()).compile();
+  };
+
+  if (typeof process !== 'undefined' && process && !process.parent) {
+    console.log('main');
+    file = process.argv[2];
+    tmplText = require('fs').readFileSync(file).toString();
+    template = compile(tmplText);
+    outfile = file.replace('.cork.html', '.cork.js');
+    require('fs').writeFileSync(outfile, js_beautify(template.tmpl));
   }
 
   /*

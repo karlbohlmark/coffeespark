@@ -1,16 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <script src="jsbeautify.js"></script>
+    <script src="ace.js"></script>
+    <script src="mode-javascript.js"></script>
+    <script src="mode-css.js"></script>
+    <script src="mode-html.js"></script>
     <script>
         window.onload = function() {
-            var codeArea = document.querySelector('textarea');
-            var compiled = document.querySelector('#try div');
-            codeArea.addEventListener('keyup', function(){
-                var tmplText = codeArea.value;
-                var dom=new Spark.Parser(new Spark.Lexer( codeArea.value )).parse()
+            var editor = ace.edit("editor");
+            var HtmlMode = require("ace/mode/html").Mode;
+            editor.getSession().setMode(new HtmlMode());
+
+            var compiled = ace.edit("compiled");
+            
+            window.editor = editor;
+            
+            window.compiled = compiled;
+
+            var JSMode = require("ace/mode/javascript").Mode;
+            compiled.getSession().setMode(new JSMode());
+
+            var compileAndBeautify = function(tmpl){
+                var dom=new Spark.Parser(new Spark.Lexer( tmpl )).parse()
                 var compiledTemplate = new Spark.Compiler(dom).compile()
-                compiled.innerHTML = compiledTemplate.tmpl.replace(/</g, '&lt;').replace(/>/g,'&gt')
-            });
+                return js_beautify( compiledTemplate.tmpl );
+            };
+            
+            var refreshCompiledView = function(){
+                var tmplText = editor.getSession().getValue();
+                compiled.getSession().setValue(compileAndBeautify(tmplText));
+            };
+
+            var scheduleCompile = function(){
+                var timeout
+                return function(){
+                    clearTimeout(timeout);
+                    timeout = setTimeout(function() {
+                        refreshCompiledView();
+                    }, 3000);
+                }
+            }();
+
+            editor.getSession().on('change', scheduleCompile);
 
             var products = []
             for(var i =0;i<7;i++){
@@ -61,6 +93,12 @@
             </li>
         </ul>
     </script>
+    <style>
+        .example-template{
+            position: relative;
+            top:350px;
+        }
+    </style>
 </head>
 <body>
     <div id="try">
@@ -69,20 +107,25 @@
             #try > * {
                 float:left;
             }
-            #try div{
+            #compiled{
                 margin-left: 20px;
-                width: 600px;
+                left: 520px;
+                position: absolute;
+                width: 500px;
+                height:500px;
             }
-            textarea{
-                width:300px;
-                height:200px;
+            #editor{
+                position: absolute;
+                width:500px;
+                height:300px;
             }
         </style>
-        <textarea>
-            <ul>
-                <li each="product in products">${product}</li>
-            </ul>
-        </textarea><div></div>
+        <div id="editor">
+&lt;ul&gt;
+    &lt;li each="product in products">${product}&lt;/li&gt;
+&lt;/ul&gt;
+        </div>
+        <div id="compiled"></div>
     </div>
     <div class="example-template">
         <div each="example in examples">
