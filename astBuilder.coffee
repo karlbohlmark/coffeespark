@@ -12,6 +12,17 @@ functionDeclaration = (name, args) ->
     type: "BlockStatement"
     body: []
 
+functionExpression = (name, args) ->
+  type: "FunctionExpression"
+  id: if name then { type: "Identifier", name: name } else null
+  params: (args or []).map((arg) ->
+    type: "Identifier"
+    name: arg
+  )
+  body:
+    type: "BlockStatement"
+    body: []
+
 identifier = (name) ->
   type: "Identifier"
   name: name
@@ -34,12 +45,25 @@ variableDeclaration = (name, init) ->
   ]
   kind: "var"
 
-returnIdentifier = (name)->
+returnStatement = (argument)->
   type: "ReturnStatement"
-  "argument": {
+  "argument": argument
+
+returnIdentifier = (name)->
+  returnStatement {
     "type": "Identifier",
     "name": name
   }
+
+property = (name, value)->
+  type: "Property",
+  key: identifier name
+  value: value || null
+  kind: 'init'
+
+objectExpression = (properties)->
+  type: "ObjectExpression",
+  properties: properties or []
 
 expressionStatement = (expression) ->
   type: "ExpressionStatement"
@@ -85,6 +109,10 @@ assignmentStatement = (identifierLeft, operator, expressionRight) ->
     right: expressionRight
 
 module.exports = {
+  property
+  returnStatement
+  objectExpression
+  functionExpression
   functionDeclaration
   variableDeclaration
   expressionStatement
