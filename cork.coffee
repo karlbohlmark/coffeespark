@@ -72,6 +72,10 @@ class Cork
 					enumerable = eachParts[2]
 					tag.each = { loopVariable, enumerable }
 
+				# Mark this node to be conditionally rendered
+				registerIf = (tag, test)->
+					tag.if = {test}
+
 				# Construct the concatenation expression of the starttag (with attributes)
 				startTag = (tag)->
 					parts = []
@@ -80,7 +84,10 @@ class Cork
 						for i in [0..tag.attributes.length-1]
 							attr = tag.attributes[i]
 							if attr.name == 'each'
-								registerEach(tag, attr.value) 
+								registerEach(tag, attr.value)
+								continue
+							if attr.name == 'if'
+								registerIf(tag, attr.value)
 								continue
 							parts.push ast.literal ' ' + attr.name + '="'
 							parts.push part for part in interpolateLiteral attr.value, parentParams
@@ -117,15 +124,18 @@ class Cork
 							ast.identifier 'forEach'), [loopFn])
 					fn.body.body.push loopExp
 				
-
-				
 				body.push ast.assignmentStatement 'buffer', '+=', elStartTag
 
 				#call the rendering function for this tag
-				jsParentNode.push(
-					ast.assignmentStatement('buffer', '+=',
-							ast.callExpressionIdentifier(renderFnName, fn.params )))
+				renderCall = ast.assignmentStatement('buffer', '+=',
+							ast.callExpressionIdentifier(renderFnName, fn.params ))
+				if elementNode.if
+					console.log 'got iff'
+					renderCall = ast.ifStatement ast.identifier(elementNode.if.test), renderCall, null
+					console.log JSON.stringify renderCall
+				jsParentNode.push(renderCall)
 
+				# recurse through child nodes
 				elementNode.childNodes?.forEach (elem) ->
 					visit elem, body, params
 				
@@ -208,7 +218,7 @@ test = [
 				</li>
 			</ul>
 		</span>
-		<input data-test="${as}asd" type="text">
+		<input if="model.apa==7" data-test="${as}asd" type="text">
 	</div>
 	"""
 ]
