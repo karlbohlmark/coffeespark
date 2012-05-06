@@ -88,7 +88,7 @@ class Cork
 					parts.push ast.literal '>'
 					compactedParts = []
 					last={type:null}
-					###
+					
 					for part, i in parts
 						if part.type == 'Literal' and last.type == 'Literal'
 							console.log "compact" + part.value
@@ -97,10 +97,11 @@ class Cork
 							console.log "push: " + JSON.stringify(part)
 							compactedParts.push part
 						last = part
-					###
-					compactedParts.forEach (p)->console.log p.type
-					console.log JSON.stringify compactedParts
-					ast.additionSequence parts
+					
+					if compactedParts.length == 1
+						compactedParts[0] 
+					else
+						ast.additionSequence compactedParts
 
 				body = fn.body.body
 
