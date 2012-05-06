@@ -91,10 +91,8 @@ class Cork
 					
 					for part, i in parts
 						if part.type == 'Literal' and last.type == 'Literal'
-							console.log "compact" + part.value
 							compactedParts[compactedParts.length-1].value += part.value
 						else
-							console.log "push: " + JSON.stringify(part)
 							compactedParts.push part
 						last = part
 					
@@ -112,7 +110,6 @@ class Cork
 				if elementNode.each
 					loopFn = ast.functionExpression 'each_' + elementNode.each.loopVariable, [elementNode.each.loopVariable]
 					params.push(ast.identifier elementNode.each.loopVariable)
-					console.log(elementNode.each.loopVariable)
 
 					body = loopFn.body.body
 					loopExp = ast.expressionStatement ast.callExpression(
@@ -157,7 +154,6 @@ class Cork
 
 		obj = ast.objectExpression templateProperties
 		functionBlock.push ast.returnStatement ast.objectExpression templateProperties
-		JSON.stringify(templateAst)
 		templateAst
 
 	   
@@ -197,14 +193,24 @@ interpolateLiteral = (textData, parentParams) ->
 		if memberExprParts.length>1
 			name = memberExprParts[0]
 		if parentParams.filter((id)->id.name==name).length == 0
-			console.log 'could not find ' + name + ' in ' + JSON.stringify(parentParams)
 			makeMemberExpr expr, 'model'
 
 
 	pieces
 
 test = [
-	'<div><span each="product in products">${product.test} <ul><li each="tag in product.tags"><span>${tag}</span></li></ul></span><input data-test="${as}asd" type="text"></div>'
+	"""
+	<div>
+		<span each="product in products">${product.test} 
+			<ul>
+				<li each="tag in product.tags">
+					<span>${tag}</span>
+				</li>
+			</ul>
+		</span>
+		<input data-test="${as}asd" type="text">
+	</div>
+	"""
 ]
 
 test.forEach (tmpl)-> console.log(module.exports.compile(tmpl))
