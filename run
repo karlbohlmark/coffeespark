@@ -1,0 +1,3 @@
+#!/bin/sh
+
+coffee -c astBuilder.coffee cork.coffee && node cork.js

@@ -3,7 +3,7 @@ escodegen 	= require 'escodegen'
 ast			= require './astBuilder'
 Parser 		= html5.Parser
 
-parse = (tmpl)-> 
+parse = (tmpl)->
 	p = new Parser()
 	p.parse_fragment(tmpl)
 	bodyFromParser = (parser)->parser.document.childNodes[0].childNodes[1]
@@ -11,8 +11,22 @@ parse = (tmpl)->
 
 class Cork
 	constructor: (@codegen, @parse)->
+		@names = {}
 
 	compile: (tmpl)-> @codegen @generateAst @parse tmpl
+
+
+	constructName: (tag)->
+		disambiguationSequence = (()->
+			current = -1
+			()-> if ++current==0 then '' else current
+		)()
+
+		candidate = tag.tagName.toLowerCase()
+
+		while @names.hasOwnProperty (candidate = candidate + disambiguationSequence())
+			;
+		@names[candidate] = candidate
 
 	generateAst: (dom)->
 		templateAst =
@@ -27,30 +41,47 @@ class Cork
 
 
 		selfClosing = ['input', 'meta', 'link']
+		isSelfClosing = (tag)-> selfClosing.indexOf(tag.tagName.toLowerCase()) != -1
 
 		visitors =
-			3: (textNode, jsParentNode, parentParams) ->
+			3: (textNode, jsParentNode, parentParams) =>
 				sequence = interpolateLiteral textNode.value, parentParams
 				
-				console.log JSON.stringify(sequence)
 				right = (if sequence.length is 1 then sequence[0] else ast.additionSequence(sequence))
 				jsParentNode.push ast.assignmentStatement("buffer", "+=", right)
 
-			1: (elementNode, jsParentNode, parentParams) ->
-				fn = ast.functionDeclaration(elementNode.tagName.toLowerCase(), ['model'])
+			1: (elementNode, jsParentNode, parentParams) =>
+				# generate render-function name for the node
+				renderFnName = @constructName elementNode
+
+				# function that renders this node
+				fn = ast.functionDeclaration(renderFnName, parentParams.map((p)->p.name))
 				fn.body.body.push ast.variableDeclaration("buffer", "")
 		
 				# Put the function declarations in the outer scope together with render to allow them
 				# be used separately for partial rendering
 				functionBlock.push fn
 
+				# Make a copy of the params array to use when looking up variables. In each-loops, the loop variable with will be appended to this list
+				params = fn.params.slice()
+
+				# Mark this node to be iterated over, and parse the iteration directive
+				registerEach = (tag, eachDirective)->
+					eachParts = eachDirective.split(' ')
+					loopVariable = eachParts[0]
+					enumerable = eachParts[2]
+					tag.each = { loopVariable, enumerable }
+
+				# Construct the concatenation expression of the starttag (with attributes)
 				startTag = (tag)->
 					parts = []
 					parts.push ast.literal '<' + tag.tagName.toLowerCase()
 					if tag.attributes.length
 						for i in [0..tag.attributes.length-1]
 							attr = tag.attributes[i]
-							console.log attr.value
+							if attr.name == 'each'
+								registerEach(tag, attr.value) 
+								continue
 							parts.push ast.literal ' ' + attr.name + '="'
 							parts.push part for part in interpolateLiteral attr.value, parentParams
 							parts.push ast.literal '"'
@@ -71,20 +102,39 @@ class Cork
 					console.log JSON.stringify compactedParts
 					ast.additionSequence parts
 
+				body = fn.body.body
 
-				fn.body.body.push ast.assignmentStatement 'buffer', '+=', startTag elementNode
+				# Ok, this is a bit weird. When the starttag is generated, the attributes are traversed and each-directives are parsed
+				# meaning the start tag must be generated before the each-property of the tag is accessed. <- Refactor
+				elStartTag = startTag elementNode
+
+				if elementNode.each
+					loopFn = ast.functionExpression 'each_' + elementNode.each.loopVariable, [elementNode.each.loopVariable]
+					params.push(ast.identifier elementNode.each.loopVariable)
+					console.log(elementNode.each.loopVariable)
+
+					body = loopFn.body.body
+					loopExp = ast.expressionStatement ast.callExpression(
+						ast.memberExpression(ast.memberExpression(ast.identifier('model'), ast.identifier(elementNode.each.enumerable)), 
+							ast.identifier 'forEach'), [loopFn])
+					fn.body.body.push loopExp
+				
+
+				
+				body.push ast.assignmentStatement 'buffer', '+=', elStartTag
 
 				#call the rendering function for this tag
 				jsParentNode.push(
 					ast.assignmentStatement('buffer', '+=',
-							ast.callExpressionIdentifier(elementNode.tagName.toLowerCase(), [ast.identifier('model')] )))
+							ast.callExpressionIdentifier(renderFnName, fn.params )))
 
 				elementNode.childNodes?.forEach (elem) ->
-					visit elem, fn.body.body, fn.params
+					visit elem, body, params
+				
+				if not isSelfClosing elementNode
+					body.push ast.assignmentStatement 'buffer', '+=', ast.literal '</' + elementNode.tagName.toLowerCase() + '>'
 
-				fn.body.body.push ast.assignmentStatement 'buffer', '+=', ast.literal '</' + elementNode.tagName.toLowerCase() + '>'
-
-				fn.body.body.push ast.returnIdentifier 'buffer'
+				body.push ast.returnIdentifier 'buffer'
 		
 		visit = (elem, jsParentNode, parentParams) ->
 			visitors[elem.nodeType] elem, jsParentNode, parentParams
@@ -141,12 +191,19 @@ interpolateLiteral = (textData, parentParams) ->
 		pieces.push ast.literal textData
 
 	for expr in pieces when expr.type == 'Identifier'
-		makeMemberExpr expr, 'model' if parentParams.indexOf(expr.name) ==-1
+		name = expr.name
+		memberExprParts = expr.name.split('.')
+		if memberExprParts.length>1
+			name = memberExprParts[0]
+		if parentParams.filter((id)->id.name==name).length == 0
+			console.log 'could not find ' + name + ' in ' + JSON.stringify(parentParams)
+			makeMemberExpr expr, 'model'
+
 
 	pieces
 
 test = [
-	'<div><span>${test}</span><input data-test="${as}asd" type="text"></div>'
+	'<div><span each="product in products">${product.test} <ul><li each="tag in product.tags"><span>${tag}</span></li></ul></span><input data-test="${as}asd" type="text"></div>'
 ]
 
 test.forEach (tmpl)-> console.log(module.exports.compile(tmpl))

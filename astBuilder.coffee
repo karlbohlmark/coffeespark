@@ -69,6 +69,12 @@ expressionStatement = (expression) ->
   type: "ExpressionStatement"
   expression: expression
 
+memberExpression = (object, property)->
+  console.log "no property member expression"+ JSON.stringify(object) if(not property)
+  type: "MemberExpression"
+  object: object
+  property: property
+
 callExpression = (callee, arguments) ->
   type: "CallExpression"
   callee: callee
@@ -109,6 +115,7 @@ assignmentStatement = (identifierLeft, operator, expressionRight) ->
     right: expressionRight
 
 module.exports = {
+  memberExpression
   property
   returnStatement
   objectExpression
