@@ -1,4 +1,5 @@
 html5 		= require 'html5'
+esprima		= require 'esprima'
 escodegen 	= require 'escodegen'
 ast			= require './astBuilder'
 Parser 		= html5.Parser
@@ -74,7 +75,9 @@ class Cork
 
 				# Mark this node to be conditionally rendered
 				registerIf = (tag, test)->
-					tag.if = {test}
+					tag.if = {
+						test: esprima.parse(test).body[0].expression
+					}
 
 				# Construct the concatenation expression of the starttag (with attributes)
 				startTag = (tag)->
@@ -123,16 +126,19 @@ class Cork
 						ast.memberExpression(ast.memberExpression(ast.identifier('model'), ast.identifier(elementNode.each.enumerable)), 
 							ast.identifier 'forEach'), [loopFn])
 					fn.body.body.push loopExp
+
+				if elementNode.if
+					body.push ast.ifStatement ast.unaryExpression('!',elementNode.if.test), ast.returnStatement(ast.literal ''), null
 				
 				body.push ast.assignmentStatement 'buffer', '+=', elStartTag
 
 				#call the rendering function for this tag
 				renderCall = ast.assignmentStatement('buffer', '+=',
 							ast.callExpressionIdentifier(renderFnName, fn.params ))
-				if elementNode.if
-					console.log 'got iff'
-					renderCall = ast.ifStatement ast.identifier(elementNode.if.test), renderCall, null
-					console.log JSON.stringify renderCall
+				
+				# if elementNode.if
+				# 	renderCall = ast.ifStatement elementNode.if.test, renderCall, null
+				# 	console.log JSON.stringify renderCall
 				jsParentNode.push(renderCall)
 
 				# recurse through child nodes
@@ -213,7 +219,7 @@ test = [
 	<div>
 		<span each="product in products">${product.test} 
 			<ul>
-				<li each="tag in product.tags">
+				<li if="tag.length>3" each="tag in product.tags">
 					<span>${tag}</span>
 				</li>
 			</ul>
