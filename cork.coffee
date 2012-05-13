@@ -10,6 +10,26 @@ parse = (tmpl)->
 	bodyFromParser = (parser)->parser.document.childNodes[0].childNodes[1]
 	bodyFromParser(p)
 
+
+# traverse object, stop recursing and do ´propertyCallback´ when ´condition´ is met
+traverseObject = (key, o, condition, propertyCallback)->
+	if typeof o == 'string' or not o
+		return
+	if(condition(key, o))
+		propertyCallback(key, o)
+	else
+		for own key, value of o
+			traverseObject key, value, condition, propertyCallback
+				
+qualifyGlobalIdentifiers = (expression, localIdentifiers)->
+	condition = (key, value)->
+		result = key!='property' && value.type == 'Identifier' && localIdentifiers.map((id)->id.name).indexOf(value.name)==-1
+		result
+	onMatch =  (key, value)-> 
+		value.name = 'model.' + value.name
+
+	traverseObject null, expression, condition, onMatch
+
 class Cork
 	constructor: (@codegen, @parse)->
 		@names = {}
@@ -25,9 +45,9 @@ class Cork
 
 		candidate = tag.tagName.toLowerCase()
 
-		while @names.hasOwnProperty (candidate = candidate + disambiguationSequence())
-			;
-		@names[candidate] = candidate
+		while @names.hasOwnProperty name = candidate + disambiguationSequence()
+			; 
+		@names[name] = name
 
 	generateAst: (dom)->
 		templateAst =
@@ -52,6 +72,7 @@ class Cork
 				jsParentNode.push ast.assignmentStatement("buffer", "+=", right)
 
 			1: (elementNode, jsParentNode, parentParams) =>
+
 				# generate render-function name for the node
 				renderFnName = @constructName elementNode
 
@@ -74,9 +95,12 @@ class Cork
 					tag.each = { loopVariable, enumerable }
 
 				# Mark this node to be conditionally rendered
-				registerIf = (tag, test)->
+				registerIf = (tag, test, identifiers)->
+					testExpression = esprima.parse(test).body[0].expression
+
+					qualifyGlobalIdentifiers testExpression, parentParams
 					tag.if = {
-						test: esprima.parse(test).body[0].expression
+						test: testExpression
 					}
 
 				# Construct the concatenation expression of the starttag (with attributes)
@@ -148,6 +172,9 @@ class Cork
 				if not isSelfClosing elementNode
 					body.push ast.assignmentStatement 'buffer', '+=', ast.literal '</' + elementNode.tagName.toLowerCase() + '>'
 
+				# returning the resulting buffer must of course be done outside the loop if this is an each loop
+				body = fn.body.body if elementNode.each
+				
 				body.push ast.returnIdentifier 'buffer'
 		
 		visit = (elem, jsParentNode, parentParams) ->
@@ -216,7 +243,7 @@ interpolateLiteral = (textData, parentParams) ->
 
 test = [
 	"""
-	<div>
+	<div if="top%2==9 && b.c==0">
 		<span each="product in products">${product.test} 
 			<ul>
 				<li if="tag.length>3" each="tag in product.tags">
@@ -231,4 +258,4 @@ test = [
 
 test.forEach (tmpl)-> console.log(module.exports.compile(tmpl))
 
-#exports.interpolateLiteral = interpolateLiteral
+#exports.interpolateLiteral = interpolateLiteral	

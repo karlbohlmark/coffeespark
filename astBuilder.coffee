@@ -45,14 +45,29 @@ variableDeclaration = (name, init) ->
   ]
   kind: "var"
 
+ifStatement = (test, consequent, alternate)->
+  {
+    type: "IfStatement"
+    test
+    consequent
+    alternate
+  }
+
+unaryExpression = (operator, argument)->
+  {
+    type: "UnaryExpression",
+    operator,
+    argument
+  }
+
 returnStatement = (argument)->
   type: "ReturnStatement"
   "argument": argument
 
 returnIdentifier = (name)->
   returnStatement {
-    "type": "Identifier",
-    "name": name
+    type: "Identifier",
+    name
   }
 
 property = (name, value)->
@@ -115,6 +130,7 @@ assignmentStatement = (identifierLeft, operator, expressionRight) ->
     right: expressionRight
 
 module.exports = {
+  unaryExpression
   memberExpression
   property
   returnStatement
@@ -129,5 +145,6 @@ module.exports = {
   assignmentStatement
   identifier
   literal
+  ifStatement
   returnIdentifier
 }

@@ -5,16 +5,8 @@ var assert = require('assert');
 var mocha = require('mocha');
 var suite = mocha.Suite;
 var test = mocha.Test;
-var Lexer = require('../lexer').Lexer;
-var Compiler = require('../parser').Compiler;
-var Parser = require('../parser').Parser;
 
-var render = function(tmpl, model){
-  var lexer = new Lexer(tmpl);
-  var dom = new Parser(lexer).parse();
-  var template = new Compiler(dom).compile();
-  return template.render(model);
-};
+var cork = require('../cork');
 
 describe('Compiler', function(){
   files.forEach(function(file){
@@ -25,7 +17,13 @@ describe('Compiler', function(){
       var renderedExpected = fs.readFileSync(file.replace('.cork', '.html')).toString();
       var modelFilePath = file.replace('.cork', '.json');
       var model = path.existsSync(modelFilePath) ? require('./' + modelFilePath) : {};
-      var rendered = render(tmpl, model);
+      
+      var source = cork.compile(tmpl);
+
+      var template = eval(source);
+
+      var rendered = template.render(model);
+
       assert.equal(renderedExpected, rendered);
     });
   });

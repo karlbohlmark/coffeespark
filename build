@@ -1,5 +1,7 @@
 #!/bin/sh
 coffee -c parser.coffee lexer.coffee && rm -f spark.js && touch spark.js && cat ./examples/jsbeautify.js >> spark.js && cat lexer.js >> spark.js && cat parser.js >> spark.js
+coffee -c cork.coffee astBuilder.coffee
+
 echo "#!/usr/bin/env node" > spark && cat spark.js >> spark
 cp $PWD/spark /usr/local/bin/spark
 chmod +x /usr/local/bin/spark
